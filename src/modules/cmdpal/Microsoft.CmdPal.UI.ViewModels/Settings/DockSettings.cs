@@ -22,6 +22,26 @@ public record DockSettings
 
     public DockSize DockSize { get; init; } = DockSize.Default;
 
+    /// <summary>
+    /// Gets how much of the screen edge the dock occupies. <see cref="DockLengthMode.Full"/>
+    /// spans the whole edge and reserves work-area space (app bar). <see cref="DockLengthMode.FitToContent"/>
+    /// makes the dock a compact, resizable toolbar (like PC Manager's toolbox) aligned along the edge.
+    /// </summary>
+    public DockLengthMode LengthMode { get; init; } = DockLengthMode.Full;
+
+    /// <summary>
+    /// Gets where the dock sits along the screen edge when <see cref="LengthMode"/>
+    /// is <see cref="DockLengthMode.FitToContent"/>. Ignored in full mode.
+    /// </summary>
+    public DockAlignment Alignment { get; init; } = DockAlignment.Center;
+
+    /// <summary>
+    /// Gets the user-chosen dock length in DIPs when <see cref="LengthMode"/> is
+    /// <see cref="DockLengthMode.FitToContent"/>. Zero means "auto": size the dock
+    /// to its content. Set when the user drags the dock's resize handle.
+    /// </summary>
+    public double CustomLength { get; init; }
+
     public bool AlwaysOnTop { get; set; } = true;
 
     // <Theme settings>
@@ -349,6 +369,29 @@ public enum DockBackdrop
 {
     Transparent,
     Acrylic,
+}
+
+/// <summary>
+/// Controls how much of the screen edge the dock occupies.
+/// </summary>
+public enum DockLengthMode
+{
+    /// <summary>The dock spans the entire screen edge and reserves work-area space.</summary>
+    Full,
+
+    /// <summary>The dock is a compact toolbar sized to its content (or a user-set length) along the edge.</summary>
+    FitToContent,
+}
+
+/// <summary>
+/// Where the dock sits along the screen edge when it doesn't span the whole edge.
+/// Start is left (horizontal docks) or top (vertical docks).
+/// </summary>
+public enum DockAlignment
+{
+    Start,
+    Center,
+    End,
 }
 
 #pragma warning restore SA1402 // File may only contain a single type

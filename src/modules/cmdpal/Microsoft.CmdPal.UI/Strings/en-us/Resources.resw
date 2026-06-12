@@ -957,6 +957,44 @@ Right-click to remove the key combination, thereby deactivating the shortcut.</v
   <data name="DockAppearance_DockSize_Compact.Content" xml:space="preserve">
     <value>Compact</value>
   </data>
+  <data name="DockAppearance_DockLength_SettingsCard.Header" xml:space="preserve">
+    <value>Length</value>
+  </data>
+  <data name="DockAppearance_DockLength_SettingsCard.Description" xml:space="preserve">
+    <value>Span the full screen edge, or use a compact toolbar that fits its content and can be resized by dragging its handle</value>
+  </data>
+  <data name="DockAppearance_DockLength_Full.Content" xml:space="preserve">
+    <value>Full screen edge</value>
+  </data>
+  <data name="DockAppearance_DockLength_FitToContent.Content" xml:space="preserve">
+    <value>Fit to content</value>
+  </data>
+  <data name="DockAppearance_DockAlignment_SettingsCard.Header" xml:space="preserve">
+    <value>Alignment</value>
+  </data>
+  <data name="DockAppearance_DockAlignment_SettingsCard.Description" xml:space="preserve">
+    <value>Where the dock sits along the screen edge when it doesn't span the full edge</value>
+  </data>
+  <data name="DockAppearance_DockAlignment_Start.Content" xml:space="preserve">
+    <value>Start</value>
+    <comment>Left for horizontal docks, top for vertical docks</comment>
+  </data>
+  <data name="DockAppearance_DockAlignment_Center.Content" xml:space="preserve">
+    <value>Center</value>
+  </data>
+  <data name="DockAppearance_DockAlignment_End.Content" xml:space="preserve">
+    <value>End</value>
+    <comment>Right for horizontal docks, bottom for vertical docks</comment>
+  </data>
+  <data name="DockAppearance_ResetLength_SettingsCard.Header" xml:space="preserve">
+    <value>Reset dock size</value>
+  </data>
+  <data name="DockAppearance_ResetLength_SettingsCard.Description" xml:space="preserve">
+    <value>Return the dock to automatic sizing after resizing it with the drag handle</value>
+  </data>
+  <data name="DockAppearance_ResetLength_Button.Content" xml:space="preserve">
+    <value>Reset</value>
+  </data>
   <data name="top_level_pin_command_name" xml:space="preserve">
     <value>Pin to home</value>
     <comment>Command name for pinning an item to the top level list of commands</comment>
@@ -1039,6 +1077,30 @@ Right-click to remove the key combination, thereby deactivating the shortcut.</v
   </data>
   <data name="Dock_AddBand_EndTooltip.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
     <value>Add band to end</value>
+  </data>
+  <data name="Dock_AddShortcut_Header.Text" xml:space="preserve">
+    <value>Add a shortcut or link</value>
+  </data>
+  <data name="Dock_AddShortcut_Name.PlaceholderText" xml:space="preserve">
+    <value>Name (optional)</value>
+  </data>
+  <data name="Dock_AddShortcut_Target.PlaceholderText" xml:space="preserve">
+    <value>File, folder, app, or URL</value>
+  </data>
+  <data name="Dock_AddShortcut_Browse.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Browse for a file</value>
+  </data>
+  <data name="Dock_AddShortcut_Browse.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Browse for a file</value>
+  </data>
+  <data name="Dock_AddShortcut_Add.Content" xml:space="preserve">
+    <value>Add to Dock</value>
+  </data>
+  <data name="Dock_ResizeGrip.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Drag to resize the dock. Double-click to reset to automatic sizing.</value>
+  </data>
+  <data name="Dock_ResizeGrip.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Resize dock</value>
   </data>
   <data name="Dock_EditMode_Save.Content" xml:space="preserve">
     <value>Save</value>

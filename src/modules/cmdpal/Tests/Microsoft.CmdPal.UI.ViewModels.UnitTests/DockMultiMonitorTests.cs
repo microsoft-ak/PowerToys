@@ -345,6 +345,37 @@ public class DockMultiMonitorTests
         Assert.IsFalse(deserialized.MonitorConfigs[1].Enabled);
     }
 
+    [TestMethod]
+    public void DockSettings_LengthModeAndAlignment_JsonRoundTrip()
+    {
+        var settings = CreateMinimalDockSettings() with
+        {
+            LengthMode = DockLengthMode.FitToContent,
+            Alignment = DockAlignment.End,
+            CustomLength = 420,
+        };
+
+        var json = JsonSerializer.Serialize(settings, JsonSerializationContext.Default.DockSettings);
+        var deserialized = JsonSerializer.Deserialize(json, JsonSerializationContext.Default.DockSettings);
+
+        Assert.IsNotNull(deserialized);
+        Assert.AreEqual(DockLengthMode.FitToContent, deserialized!.LengthMode);
+        Assert.AreEqual(DockAlignment.End, deserialized.Alignment);
+        Assert.AreEqual(420.0, deserialized.CustomLength);
+    }
+
+    [TestMethod]
+    public void DockSettings_LengthMode_DefaultsToFull_ForLegacySettingsFiles()
+    {
+        // Settings files written before the length-mode feature have none of the
+        // new properties; they must load with full-edge (legacy) behavior.
+        var deserialized = CreateMinimalDockSettings();
+
+        Assert.AreEqual(DockLengthMode.Full, deserialized.LengthMode);
+        Assert.AreEqual(DockAlignment.Center, deserialized.Alignment);
+        Assert.AreEqual(0.0, deserialized.CustomLength);
+    }
+
     private static DockSettings CreateMinimalDockSettings()
     {
         // Deserialize from minimal JSON to avoid WinUI3 dependencies
