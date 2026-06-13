@@ -76,7 +76,40 @@ cd C:\Git\PowerToys\x64\Debug
 5. Select `Floating Dock` in the left navigation.
 6. Turn the module on.
 
-The dock should appear as an always-on-top floating strip. Drag the dock body to move it, move it near a monitor working-area edge to snap, drop files/folders/shortcuts/URLs onto it to add launch shortcuts, and use right-click menus to rename, reorder, or remove items.
+The dock should appear as an always-on-top PC Manager-style toolbox: a compact dark rounded surface with a shortcut count puck, shortcut icons, an add button, and an overflow menu. Drag the dock body to move it, move it near a monitor working-area edge to snap, drop files/folders/shortcuts/URLs onto it to add launch shortcuts, and use right-click menus to rename, reorder, or remove items.
+
+## If the dock does not appear
+
+Check these in order:
+
+1. Confirm you are running the repo build, not an installed PowerToys build:
+
+```powershell
+Get-Process PowerToys -ErrorAction SilentlyContinue | Select-Object Id,Path
+```
+
+The path should be under `C:\Git\PowerToys\x64\Debug`. If it is under `%LOCALAPPDATA%\PowerToys`, exit that instance before starting the repo build.
+
+2. Confirm both Floating Dock binaries exist:
+
+```powershell
+Test-Path C:\Git\PowerToys\x64\Debug\PowerToys.FloatingDock.exe
+Test-Path C:\Git\PowerToys\x64\Debug\PowerToys.FloatingDockModuleInterface.dll
+```
+
+3. Run the direct helper smoke test below. If the helper appears directly but not through PowerToys, inspect the module interface log under:
+
+```text
+%LOCALAPPDATA%\Microsoft\PowerToys\FloatingDock\ModuleInterface\Logs
+```
+
+4. Reset a saved off-screen position:
+
+```powershell
+Remove-Item "$env:LOCALAPPDATA\Microsoft\PowerToys\FloatingDock\dock.json" -ErrorAction SilentlyContinue
+```
+
+On next launch, the dock defaults to a visible top-right position on the primary monitor.
 
 ## Run the helper directly
 
@@ -147,4 +180,31 @@ Expected result:
 
 ```text
 started=True exitedAfterSignal=True exitCode=0
+```
+
+## Tests
+
+Build and run the focused unit tests:
+
+```powershell
+cd C:\Git\PowerToys\src\modules\FloatingDock\FloatingDock.UnitTests
+C:\Git\PowerToys\tools\build\build.cmd
+```
+
+```powershell
+$vstest = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe"
+& $vstest "C:\Git\PowerToys\x64\Debug\tests\FloatingDock.UnitTests\net10.0-windows10.0.26100.0\PowerToys.FloatingDock.UnitTests.dll"
+```
+
+Build the fuzz target package:
+
+```powershell
+cd C:\Git\PowerToys\src\modules\FloatingDock\FloatingDock.FuzzTests
+C:\Git\PowerToys\tools\build\build.cmd
+```
+
+Settings UI validation for this module lives in:
+
+```text
+src\settings-ui\Settings.UI.UnitTests\ViewModelTests\FloatingDock.cs
 ```

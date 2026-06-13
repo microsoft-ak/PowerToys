@@ -12,7 +12,7 @@ namespace Microsoft.PowerToys.Settings.UI.Library
         public FloatingDockProperties()
         {
             StartExpanded = new BoolProperty(true);
-            ShowLabels = new BoolProperty(true);
+            ShowLabels = new BoolProperty(false);
             SnapThreshold = new IntProperty(32);
         }
 

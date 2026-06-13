@@ -14,4 +14,10 @@
     <Nullable>enable</Nullable>
     <NoWarn>$(NoWarn);CA1031;CA1303;CA1416;CA1515;CA1822;CA1852;CA2000;SA1009;SA1011;SA1116;SA1117;SA1200;SA1310;SA1402;SA1512;SA1513;SA1515;SA1600;SA1633</NoWarn>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>PowerToys.FloatingDock.UnitTests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 </Project>

@@ -4,19 +4,29 @@
 
 using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 namespace Microsoft.PowerToys.FloatingDock;
 
 internal sealed class DockForm : Form
 {
+    private const int DockHeight = 54;
+    private const int MinDockWidth = 154;
+    private const int CornerRadius = 7;
+
     private readonly DockSettingsStore store;
     private readonly FlowLayoutPanel strip;
-    private readonly Button toggleButton;
-    private readonly Button addButton;
+    private readonly DockHubButton hubButton;
+    private readonly DockActionButton addButton;
+    private readonly DockActionButton menuButton;
+    private readonly DockSummaryPanel summaryPanel;
+    private readonly DockSeparator separator;
     private readonly Timer settingsRefreshTimer;
+    private readonly ToolTip toolTip = new();
     private DockSettings settings;
     private DockState state;
     private DateTime settingsLastWrite;
@@ -29,52 +39,77 @@ internal sealed class DockForm : Form
         settings = store.LoadSettings();
         state = store.LoadState(settings);
 
+        SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
+
+        AutoScaleMode = AutoScaleMode.Dpi;
         FormBorderStyle = FormBorderStyle.None;
         ShowInTaskbar = false;
+        ShowIcon = false;
         TopMost = true;
         AllowDrop = true;
         DoubleBuffered = true;
-        BackColor = Color.FromArgb(28, 31, 36);
-        Padding = new Padding(6);
+        KeyPreview = true;
+        Text = "PowerToys Floating Dock";
+        AccessibleName = "PowerToys Floating Dock";
+        AccessibleDescription = "Floating always-on-top shortcut dock";
+        AccessibleRole = AccessibleRole.ToolBar;
+        Padding = new Padding(6, 6, 6, 6);
         StartPosition = FormStartPosition.Manual;
+        BackColor = DockPalette.Surface;
 
         strip = new FlowLayoutPanel
         {
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            BackColor = Color.Transparent,
+            AutoSize = false,
+            BackColor = DockPalette.Surface,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
             Padding = Padding.Empty,
             Margin = Padding.Empty,
         };
 
-        toggleButton = CreateChromeButton(">");
-        toggleButton.Click += (_, _) => ToggleExpanded();
+        hubButton = new DockHubButton();
+        hubButton.Click += (_, _) => ToggleExpanded();
 
-        addButton = CreateChromeButton("+");
-        addButton.AllowDrop = true;
+        summaryPanel = new DockSummaryPanel();
+        summaryPanel.DoubleClick += (_, _) => AddCustomShortcut();
+        summaryPanel.DragEnter += OnExternalDragEnter;
+        summaryPanel.DragDrop += OnExternalDragDrop;
+
+        separator = new DockSeparator();
+
+        addButton = new DockActionButton(DockActionKind.Add)
+        {
+            AllowDrop = true,
+        };
         addButton.Click += (_, _) => AddCustomShortcut();
-
-        Controls.Add(strip);
-        ApplySavedLocation();
-        BuildStrip();
-
-        MouseDown += BeginWindowDrag;
-        MouseMove += ContinueWindowDrag;
-        MouseUp += EndWindowDrag;
-        DragEnter += OnExternalDragEnter;
-        DragDrop += OnExternalDragDrop;
-        strip.MouseDown += BeginWindowDrag;
-        strip.MouseMove += ContinueWindowDrag;
-        strip.MouseUp += EndWindowDrag;
-        strip.DragEnter += OnExternalDragEnter;
-        strip.DragDrop += OnExternalDragDrop;
-        toggleButton.MouseDown += BeginWindowDrag;
-        toggleButton.MouseMove += ContinueWindowDrag;
-        toggleButton.MouseUp += EndWindowDrag;
         addButton.DragEnter += OnExternalDragEnter;
         addButton.DragDrop += OnExternalDragDrop;
+
+        menuButton = new DockActionButton(DockActionKind.More);
+        menuButton.Click += (_, _) => ShowDockMenu();
+
+        toolTip.SetToolTip(hubButton, "Expand or collapse");
+        toolTip.SetToolTip(summaryPanel, "Drag the dock or drop shortcuts here");
+        toolTip.SetToolTip(addButton, "Add shortcut");
+        toolTip.SetToolTip(menuButton, "More options");
+
+        Controls.Add(strip);
+        ApplyTheme();
+        BuildStrip(persist: false);
+        ApplySavedLocation();
+        PersistState();
+
+        AttachWindowDrag(this);
+        AttachWindowDrag(strip);
+        AttachWindowDrag(hubButton);
+        AttachWindowDrag(summaryPanel);
+
+        KeyDown += OnDockKeyDown;
+        DragEnter += OnExternalDragEnter;
+        DragDrop += OnExternalDragDrop;
+        strip.DragEnter += OnExternalDragEnter;
+        strip.DragDrop += OnExternalDragDrop;
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
         ContextMenuStrip = CreateDockMenu();
 
@@ -90,46 +125,85 @@ internal sealed class DockForm : Form
     {
         PersistState();
         settingsRefreshTimer.Stop();
+        SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+        toolTip.Dispose();
         base.OnFormClosing(e);
     }
 
-    private static Button CreateChromeButton(string text)
+    protected override void OnPaint(PaintEventArgs e)
     {
-        return new Button
-        {
-            Text = text,
-            Width = 36,
-            Height = 40,
-            Margin = new Padding(3),
-            FlatStyle = FlatStyle.Flat,
-            BackColor = Color.FromArgb(48, 53, 61),
-            ForeColor = Color.White,
-            UseVisualStyleBackColor = false,
-        };
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+        var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
+        using var path = DockDrawing.CreateRoundedRectanglePath(bounds, CornerRadius);
+        using var fill = new SolidBrush(SystemInformation.HighContrast ? SystemColors.Window : DockPalette.Surface);
+        using var border = new Pen(SystemInformation.HighContrast ? SystemColors.ControlText : Color.FromArgb(78, 82, 90), 1.0f);
+
+        e.Graphics.FillPath(fill, path);
+        e.Graphics.DrawPath(border, path);
     }
 
-    private void BuildStrip()
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        UpdateWindowRegion();
+    }
+
+    private void AttachWindowDrag(Control control)
+    {
+        control.MouseDown += BeginWindowDrag;
+        control.MouseMove += ContinueWindowDrag;
+        control.MouseUp += EndWindowDrag;
+    }
+
+    private void BuildStrip(bool persist = true)
     {
         strip.SuspendLayout();
         strip.Controls.Clear();
 
-        toggleButton.Text = state.IsExpanded ? "<" : "Dock";
-        toggleButton.Width = state.IsExpanded ? 36 : 74;
-        strip.Controls.Add(toggleButton);
+        hubButton.ShortcutCount = state.Shortcuts.Count;
+        hubButton.IsExpanded = state.IsExpanded;
+        hubButton.AccessibleDescription = state.IsExpanded ? "Collapse dock" : "Expand dock";
+        strip.Controls.Add(hubButton);
 
         if (state.IsExpanded)
         {
-            for (var index = 0; index < state.Shortcuts.Count; index++)
+            if (state.Shortcuts.Count == 0)
             {
-                strip.Controls.Add(CreateTile(state.Shortcuts[index], index));
+                summaryPanel.Width = 72;
+                summaryPanel.PrimaryText = "Drop links";
+                summaryPanel.SecondaryText = "or files";
+                strip.Controls.Add(summaryPanel);
             }
-
-            strip.Controls.Add(addButton);
+            else
+            {
+                for (var index = 0; index < state.Shortcuts.Count; index++)
+                {
+                    strip.Controls.Add(CreateTile(state.Shortcuts[index], index));
+                }
+            }
         }
+        else
+        {
+            summaryPanel.Width = 72;
+            summaryPanel.PrimaryText = "Shortcuts";
+            summaryPanel.SecondaryText = state.Shortcuts.Count == 1 ? "1 pinned" : $"{state.Shortcuts.Count} pinned";
+            strip.Controls.Add(summaryPanel);
+        }
+
+        strip.Controls.Add(separator);
+        strip.Controls.Add(addButton);
+        strip.Controls.Add(menuButton);
 
         strip.ResumeLayout();
         ResizeToContent();
-        PersistState();
+        ApplyTheme();
+        ContextMenuStrip = CreateDockMenu();
+
+        if (persist)
+        {
+            PersistState();
+        }
     }
 
     private ShortcutTile CreateTile(ShortcutItem item, int index)
@@ -138,6 +212,7 @@ internal sealed class DockForm : Form
         {
             ContextMenuStrip = CreateShortcutMenu(index),
         };
+        toolTip.SetToolTip(tile, $"{item.Name}\n{item.Target}");
 
         var mouseDownPoint = Point.Empty;
         tile.MouseDown += (_, args) => mouseDownPoint = args.Location;
@@ -150,6 +225,19 @@ internal sealed class DockForm : Form
             }
         };
         tile.Click += (_, _) => ShortcutResolver.Launch(item);
+        tile.KeyDown += (_, args) =>
+        {
+            if (args.KeyCode == Keys.Delete)
+            {
+                RemoveShortcut(index);
+                args.Handled = true;
+            }
+            else if (args.KeyCode == Keys.F2)
+            {
+                RenameShortcut(index);
+                args.Handled = true;
+            }
+        };
         tile.DragEnter += OnShortcutDragEnter;
         tile.DragDrop += (_, args) => ReorderShortcutFromDrop(args, index);
 
@@ -177,14 +265,73 @@ internal sealed class DockForm : Form
         return menu;
     }
 
+    private void ShowDockMenu()
+    {
+        ContextMenuStrip = CreateDockMenu();
+        ContextMenuStrip.Show(menuButton, new Point(0, menuButton.Height + 2));
+    }
+
     private void ResizeToContent()
     {
-        var tileWidth = settings.ShowLabels ? 84 : 50;
-        var desiredWidth = state.IsExpanded ? 48 + 48 + (state.Shortcuts.Count * tileWidth) : 90;
-        var workingArea = Screen.FromPoint(Location).WorkingArea;
-        Width = Math.Min(Math.Max(desiredWidth, 90), Math.Max(workingArea.Width - 24, 90));
-        Height = state.IsExpanded ? (settings.ShowLabels ? 76 : 56) : 52;
         strip.Location = new Point(Padding.Left, Padding.Top);
+
+        var contentWidth = strip.Controls.Cast<Control>().Sum(control => control.Width + control.Margin.Horizontal);
+        var workingArea = Screen.FromPoint(Location).WorkingArea;
+        Width = Math.Min(Math.Max(contentWidth + Padding.Horizontal, MinDockWidth), Math.Max(workingArea.Width - 24, MinDockWidth));
+        Height = DockHeight;
+        strip.Size = new Size(Width - Padding.Horizontal, Height - Padding.Vertical);
+        UpdateWindowRegion();
+    }
+
+    private void ApplyTheme()
+    {
+        BackColor = SystemInformation.HighContrast ? SystemColors.Window : DockPalette.Surface;
+        ForeColor = SystemInformation.HighContrast ? SystemColors.ControlText : Color.White;
+        strip.BackColor = BackColor;
+
+        foreach (Control control in strip.Controls)
+        {
+            control.BackColor = BackColor;
+            control.ForeColor = ForeColor;
+            control.Invalidate();
+        }
+
+        Invalidate();
+    }
+
+    private void UpdateWindowRegion()
+    {
+        if (Width <= 0 || Height <= 0)
+        {
+            return;
+        }
+
+        using var path = DockDrawing.CreateRoundedRectanglePath(new Rectangle(0, 0, Width, Height), CornerRadius);
+        var previousRegion = Region;
+        Region = new Region(path);
+        previousRegion?.Dispose();
+    }
+
+    private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    {
+        if (e.Category is UserPreferenceCategory.Color or UserPreferenceCategory.General or UserPreferenceCategory.VisualStyle)
+        {
+            ApplyTheme();
+        }
+    }
+
+    private void OnDockKeyDown(object? sender, KeyEventArgs args)
+    {
+        if (args.KeyCode == Keys.Escape && state.IsExpanded)
+        {
+            ToggleExpanded();
+            args.Handled = true;
+        }
+        else if (args.KeyCode == Keys.Insert || (args.Control && args.KeyCode == Keys.N))
+        {
+            AddCustomShortcut();
+            args.Handled = true;
+        }
     }
 
     private void ToggleExpanded()
@@ -317,13 +464,13 @@ internal sealed class DockForm : Form
 
     private void BeginWindowDrag(object? sender, MouseEventArgs args)
     {
-        if (args.Button != MouseButtons.Left)
+        if (args.Button != MouseButtons.Left || sender is not Control control)
         {
             return;
         }
 
         draggingWindow = true;
-        dragOffset = args.Location;
+        dragOffset = PointToClient(control.PointToScreen(args.Location));
     }
 
     private void ContinueWindowDrag(object? sender, MouseEventArgs args)
@@ -352,39 +499,11 @@ internal sealed class DockForm : Form
     {
         var screen = Screen.FromRectangle(Bounds);
         var area = screen.WorkingArea;
-        var threshold = Math.Max(4, settings.SnapThreshold);
-        var newLeft = Left;
-        var newTop = Top;
-        var edge = "None";
-
-        if (Math.Abs(Left - area.Left) <= threshold)
-        {
-            newLeft = area.Left;
-            edge = "Left";
-        }
-        else if (Math.Abs(Right - area.Right) <= threshold)
-        {
-            newLeft = area.Right - Width;
-            edge = "Right";
-        }
-
-        if (Math.Abs(Top - area.Top) <= threshold)
-        {
-            newTop = area.Top;
-            edge = "Top";
-        }
-        else if (Math.Abs(Bottom - area.Bottom) <= threshold)
-        {
-            newTop = area.Bottom - Height;
-            edge = "Bottom";
-        }
-
-        Location = new Point(
-            Math.Clamp(newLeft, area.Left, area.Right - Width),
-            Math.Clamp(newTop, area.Top, area.Bottom - Height));
+        var result = DockSnap.Snap(Bounds, area, settings.SnapThreshold);
+        Bounds = result.Bounds;
 
         state.MonitorDeviceName = screen.DeviceName;
-        state.SnapEdge = edge;
+        state.SnapEdge = result.Edge;
         PersistState();
     }
 
@@ -392,15 +511,15 @@ internal sealed class DockForm : Form
     {
         var screen = Screen.AllScreens.FirstOrDefault(candidate => candidate.DeviceName == state.MonitorDeviceName) ?? Screen.PrimaryScreen!;
         var area = screen.WorkingArea;
-        Location = new Point(
-            Math.Clamp(state.Left, area.Left, area.Right - Math.Max(Width, 90)),
-            Math.Clamp(state.Top, area.Top, area.Bottom - Math.Max(Height, 52)));
+        Location = store.HasSavedState ?
+            DockSnap.ClampLocation(Size, new Point(state.Left, state.Top), area) :
+            DockSnap.DefaultLocation(Size, area);
     }
 
     private void ResetPosition()
     {
         var area = Screen.PrimaryScreen!.WorkingArea;
-        Location = new Point(area.Right - Width - 24, area.Top + 96);
+        Location = DockSnap.DefaultLocation(Size, area);
         SnapToNearestEdge();
     }
 

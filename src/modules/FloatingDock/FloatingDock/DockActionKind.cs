@@ -4,11 +4,8 @@
 
 namespace Microsoft.PowerToys.FloatingDock;
 
-internal sealed class DockSettings
+internal enum DockActionKind
 {
-    public bool StartExpanded { get; set; } = true;
-
-    public bool ShowLabels { get; set; }
-
-    public int SnapThreshold { get; set; } = 32;
+    Add,
+    More,
 }

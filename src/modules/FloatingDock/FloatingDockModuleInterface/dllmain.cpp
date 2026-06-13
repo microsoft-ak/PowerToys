@@ -18,6 +18,31 @@ namespace
 {
     const wchar_t* MODULE_DESCRIPTION = L"A floating always-on-top dock for quick access to files, folders, apps, URLs, shell locations, and commands.";
     const wchar_t* DOCK_PROCESS_NAME = L"PowerToys.FloatingDock.exe";
+
+    std::filesystem::path get_module_directory()
+    {
+        std::wstring module_path(MAX_PATH, L'\0');
+        DWORD length = 0;
+
+        for (;;)
+        {
+            length = GetModuleFileNameW(reinterpret_cast<HMODULE>(&__ImageBase), module_path.data(), static_cast<DWORD>(module_path.size()));
+            if (length == 0)
+            {
+                return {};
+            }
+
+            if (length < module_path.size() - 1)
+            {
+                module_path.resize(length);
+                break;
+            }
+
+            module_path.resize(module_path.size() * 2);
+        }
+
+        return std::filesystem::path(module_path).parent_path();
+    }
 }
 
 BOOL APIENTRY DllMain(HMODULE, DWORD, LPVOID)
@@ -132,10 +157,21 @@ private:
             return;
         }
 
-        std::wstring command_line = std::format(L"\"{}\" --pid {} --exit-event \"{}\"", DOCK_PROCESS_NAME, current_pid, exit_event_name);
+        const auto module_directory = get_module_directory();
+        const auto executable_path = module_directory / DOCK_PROCESS_NAME;
+        if (module_directory.empty() || !std::filesystem::exists(executable_path))
+        {
+            Logger::error(L"Floating Dock executable was not found at '{}'.", executable_path.wstring());
+            close_process_handles();
+            return;
+        }
+
+        const auto executable_path_string = executable_path.wstring();
+        const auto working_directory = module_directory.wstring();
+        std::wstring command_line = std::format(L"\"{}\" --pid {} --exit-event \"{}\"", executable_path_string, current_pid, exit_event_name);
         STARTUPINFO startup_info = { sizeof(startup_info) };
 
-        if (!CreateProcessW(DOCK_PROCESS_NAME, command_line.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup_info, &process_info))
+        if (!CreateProcessW(executable_path_string.c_str(), command_line.data(), nullptr, nullptr, FALSE, 0, nullptr, working_directory.c_str(), &startup_info, &process_info))
         {
             Logger::error(L"Floating Dock failed to start. {}", get_last_error_or_default(GetLastError()));
             close_process_handles();

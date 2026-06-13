@@ -5,6 +5,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Microsoft.PowerToys.FloatingDock;
 
@@ -13,17 +14,32 @@ internal sealed class DockSettingsStore
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() },
     };
 
-    public string ModuleFolder { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Microsoft",
-        "PowerToys",
-        "FloatingDock");
+    public DockSettingsStore()
+        : this(null)
+    {
+    }
+
+    public DockSettingsStore(string? moduleFolder)
+    {
+        ModuleFolder = string.IsNullOrWhiteSpace(moduleFolder) ?
+            Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Microsoft",
+                "PowerToys",
+                "FloatingDock") :
+            moduleFolder;
+    }
+
+    public string ModuleFolder { get; }
 
     private string SettingsFilePath => Path.Combine(ModuleFolder, "settings.json");
 
     private string DockFilePath => Path.Combine(ModuleFolder, "dock.json");
+
+    public bool HasSavedState => File.Exists(DockFilePath);
 
     public DockSettings LoadSettings()
     {
