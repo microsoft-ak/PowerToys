@@ -378,6 +378,30 @@
                 Background="{ThemeResource ControlStrongFillColorDefaultBrush}"
                 CornerRadius="1.5" />
         </Border>
+
+        <!--
+            Grab handle shown only for floating placement. Pressing it hands the
+            drag to the system move loop (code-behind); placement (leading edge,
+            orientation) is set from code-behind to match the dock layout.
+        -->
+        <Border
+            x:Name="FloatingDragHandle"
+            x:Uid="Dock_FloatingDragHandle"
+            Width="14"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Stretch"
+            Background="Transparent"
+            PointerEntered="FloatingDragHandle_PointerEntered"
+            PointerExited="FloatingDragHandle_PointerExited"
+            PointerPressed="FloatingDragHandle_PointerPressed"
+            Visibility="Collapsed">
+            <FontIcon
+                x:Name="FloatingDragHandleGlyph"
+                FontSize="12"
+                AutomationProperties.AccessibilityView="Raw"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Glyph="&#xE76F;" />
+        </Border>
         <TeachingTip
             x:Name="EditButtonsTeachingTip"
             MinWidth="0"

@@ -106,6 +106,12 @@ public sealed partial class DockControl : UserControl, IRecipient<CloseContextMe
     /// </summary>
     internal event EventHandler? ContentLayoutChanged;
 
+    /// <summary>
+    /// Raised when the user presses the floating dock's grab handle to move the
+    /// window. The owning window hands the drag to the system move loop.
+    /// </summary>
+    internal event EventHandler? MoveDragRequested;
+
     public static readonly DependencyProperty IsEditModeProperty =
         DependencyProperty.Register(nameof(IsEditMode), typeof(bool), typeof(DockControl), new PropertyMetadata(false, OnIsEditModeChanged));
 
@@ -329,8 +335,15 @@ public sealed partial class DockControl : UserControl, IRecipient<CloseContextMe
         DockSize = effectiveSize;
 
         ItemsOrientation = isHorizontal ? Orientation.Horizontal : Orientation.Vertical;
-        IsFloating = settings.LengthMode == DockLengthMode.FitToContent;
-        UpdateResizeGrip(settings, isHorizontal);
+
+        var isFloatingPlacement = settings.Placement == DockPlacement.Floating;
+        var isEdgeFitToContent = settings.Placement == DockPlacement.Edge && settings.LengthMode == DockLengthMode.FitToContent;
+
+        // Rounded corners + full border for any compact/toolbar form.
+        IsFloating = isFloatingPlacement || isEdgeFitToContent;
+
+        UpdateResizeGrip(settings, isHorizontal, isEdgeFitToContent);
+        UpdateFloatingDragHandle(isFloatingPlacement, isHorizontal);
 
         if (settings.Backdrop == DockBackdrop.Transparent)
         {
@@ -339,13 +352,47 @@ public sealed partial class DockControl : UserControl, IRecipient<CloseContextMe
     }
 
     /// <summary>
+    /// Shows the grab handle for floating placement (on the leading edge of the
+    /// dock, oriented to match the layout) and hides it otherwise.
+    /// </summary>
+    private void UpdateFloatingDragHandle(bool isFloatingPlacement, bool isHorizontal)
+    {
+        if (!isFloatingPlacement)
+        {
+            FloatingDragHandle.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        FloatingDragHandle.Visibility = Visibility.Visible;
+
+        if (isHorizontal)
+        {
+            FloatingDragHandle.Width = 14;
+            FloatingDragHandle.Height = double.NaN;
+            FloatingDragHandle.HorizontalAlignment = HorizontalAlignment.Left;
+            FloatingDragHandle.VerticalAlignment = VerticalAlignment.Stretch;
+            FloatingDragHandleGlyph.Glyph = "\uE784"; // GripperBarVertical
+        }
+        else
+        {
+            FloatingDragHandle.Width = double.NaN;
+            FloatingDragHandle.Height = 14;
+            FloatingDragHandle.HorizontalAlignment = HorizontalAlignment.Stretch;
+            FloatingDragHandle.VerticalAlignment = VerticalAlignment.Top;
+            FloatingDragHandleGlyph.Glyph = "\uE76F"; // GripperBarHorizontal
+        }
+    }
+
+    /// <summary>
     /// Places the resize grip on the correct edge for the current orientation and
     /// alignment: the grip sits on the dock's "free" end (the edge that moves when
     /// the dock grows), which for End alignment is the start edge instead.
     /// </summary>
-    private void UpdateResizeGrip(DockSettings settings, bool isHorizontal)
+    private void UpdateResizeGrip(DockSettings settings, bool isHorizontal, bool isEdgeFitToContent)
     {
-        if (!IsFloating)
+        // The drag-to-resize grip is only for the edge-anchored fit-to-content
+        // toolbar. Floating docks resize automatically to their content.
+        if (!isEdgeFitToContent)
         {
             ResizeGrip.Visibility = Visibility.Collapsed;
             return;
@@ -1082,6 +1129,27 @@ public sealed partial class DockControl : UserControl, IRecipient<CloseContextMe
         }
     }
 
+    private void FloatingDragHandle_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        // Only start a move on primary (left) button presses.
+        var point = e.GetCurrentPoint(this);
+        if (point.Properties.IsLeftButtonPressed)
+        {
+            MoveDragRequested?.Invoke(this, EventArgs.Empty);
+            e.Handled = true;
+        }
+    }
+
+    private void FloatingDragHandle_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
+    }
+
+    private void FloatingDragHandle_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        ProtectedCursor = null;
+    }
+
     private void ShortcutTargetTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         AddShortcutButton.IsEnabled = !string.IsNullOrWhiteSpace(ShortcutTargetTextBox.Text);
@@ -1119,7 +1187,7 @@ public sealed partial class DockControl : UserControl, IRecipient<CloseContextMe
         }
     }
 
-    private void AddShortcutButton_Click(object sender, RoutedEventArgs e)
+    private async void AddShortcutButton_Click(object sender, RoutedEventArgs e)
     {
         var target = ShortcutTargetTextBox.Text?.Trim();
         if (string.IsNullOrEmpty(target))
@@ -1140,22 +1208,22 @@ public sealed partial class DockControl : UserControl, IRecipient<CloseContextMe
             return;
         }
 
+        var targetSide = _addBandTargetSide;
         var bookmark = bookmarksManager.Add(name, target);
 
-        // Same command ID the bookmark would have in the top-level list, so
-        // pinning stays consistent with the drag-and-drop and palette paths.
+        // Same command ID the bookmark gets in the top-level list, so the new
+        // band resolves cleanly. Route it through the dock's edit session (the
+        // add-shortcut form is only shown in edit mode) so it gets its icon and
+        // title initialized like any other band and is saved on "Done". Pinning
+        // straight to settings here would be dropped, because the ViewModel
+        // ignores settings changes while editing.
         var commandId = Ext.Bookmarks.Helpers.CommandIds.GetLaunchBookmarkItemId(bookmark.Id);
-        WeakReferenceMessenger.Default.Send(new PinToDockMessage(
-            "Bookmarks",
-            commandId,
-            true,
-            WithReload: false,
-            Side: _addBandTargetSide,
-            MonitorDeviceId: ViewModel.MonitorDeviceId));
 
         ShortcutNameTextBox.Text = string.Empty;
         ShortcutTargetTextBox.Text = string.Empty;
         AddBandFlyout.Hide();
+
+        await ViewModel.AddNewBandByCommandIdAsync(commandId, targetSide);
     }
 
     private static string DeriveShortcutName(string target)

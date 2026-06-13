@@ -52,8 +52,30 @@
                     <!--  Appearance Section  -->
                     <TextBlock x:Uid="DockAppearanceSettingsHeader" Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" />
 
+                    <!--  Placement: anchored to an edge (app bar) vs. free-floating toolbar  -->
+                    <controls:SettingsCard x:Uid="DockAppearance_Placement_SettingsCard" HeaderIcon="{ui:FontIcon Glyph=&#xE7C4;}">
+                        <ComboBox
+                            x:Name="DockPlacementComboBox"
+                            MinWidth="{StaticResource SettingActionControlMinWidth}"
+                            AutomationProperties.AutomationId="CmdPal_DockSettingsPage_Placement"
+                            SelectedIndex="{x:Bind SelectedPlacementIndex, Mode=TwoWay}">
+                            <ComboBoxItem x:Uid="DockAppearance_Placement_Edge" />
+                            <ComboBoxItem x:Uid="DockAppearance_Placement_Floating" />
+                        </ComboBox>
+                    </controls:SettingsCard>
+
+                    <!--  Auto-hide (floating placement only)  -->
+                    <controls:SettingsCard
+                        x:Name="DockAutoHideSettingsCard"
+                        x:Uid="DockAppearance_AutoHide_SettingsCard"
+                        HeaderIcon="{ui:FontIcon Glyph=&#xE7C4;}">
+                        <ToggleSwitch AutomationProperties.AutomationId="CmdPal_DockSettingsPage_AutoHide" IsOn="{x:Bind ViewModel.Dock_AutoHide, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+
                     <!--  Dock Position  -->
-                    <controls:SettingsCard x:Uid="DockAppearance_DockPosition_SettingsCard">
+                    <controls:SettingsCard
+                        x:Name="DockPositionSettingsCard"
+                        x:Uid="DockAppearance_DockPosition_SettingsCard">
                         <controls:SettingsCard.HeaderIcon>
                             <SymbolIcon Symbol="MoveToFolder" />
                         </controls:SettingsCard.HeaderIcon>

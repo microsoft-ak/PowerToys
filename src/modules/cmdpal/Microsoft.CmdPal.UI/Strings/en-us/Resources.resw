@@ -957,6 +957,24 @@ Right-click to remove the key combination, thereby deactivating the shortcut.</v
   <data name="DockAppearance_DockSize_Compact.Content" xml:space="preserve">
     <value>Compact</value>
   </data>
+  <data name="DockAppearance_Placement_SettingsCard.Header" xml:space="preserve">
+    <value>Placement</value>
+  </data>
+  <data name="DockAppearance_Placement_SettingsCard.Description" xml:space="preserve">
+    <value>Anchor the dock to a screen edge, or make it a free-floating toolbar you can drag anywhere</value>
+  </data>
+  <data name="DockAppearance_Placement_Edge.Content" xml:space="preserve">
+    <value>Anchored to edge</value>
+  </data>
+  <data name="DockAppearance_Placement_Floating.Content" xml:space="preserve">
+    <value>Floating</value>
+  </data>
+  <data name="DockAppearance_AutoHide_SettingsCard.Header" xml:space="preserve">
+    <value>Auto-hide</value>
+  </data>
+  <data name="DockAppearance_AutoHide_SettingsCard.Description" xml:space="preserve">
+    <value>When snapped to an edge, slide the dock off-screen until you move the pointer to that edge</value>
+  </data>
   <data name="DockAppearance_DockLength_SettingsCard.Header" xml:space="preserve">
     <value>Length</value>
   </data>
@@ -1101,6 +1119,12 @@ Right-click to remove the key combination, thereby deactivating the shortcut.</v
   </data>
   <data name="Dock_ResizeGrip.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
     <value>Resize dock</value>
+  </data>
+  <data name="Dock_FloatingDragHandle.[using:Microsoft.UI.Xaml.Controls]ToolTipService.ToolTip" xml:space="preserve">
+    <value>Drag to move the dock. Drop near an edge to snap it there.</value>
+  </data>
+  <data name="Dock_FloatingDragHandle.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name" xml:space="preserve">
+    <value>Move dock</value>
   </data>
   <data name="Dock_EditMode_Save.Content" xml:space="preserve">
     <value>Save</value>

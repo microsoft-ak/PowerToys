@@ -376,6 +376,45 @@ public class DockMultiMonitorTests
         Assert.AreEqual(0.0, deserialized.CustomLength);
     }
 
+    [TestMethod]
+    public void DockSettings_FloatingPlacement_JsonRoundTrip()
+    {
+        var settings = CreateMinimalDockSettings() with
+        {
+            Placement = DockPlacement.Floating,
+            AutoHide = true,
+            FloatingSnapped = true,
+            Side = DockSide.Right,
+            FloatingX = 1280,
+            FloatingY = 240,
+        };
+
+        var json = JsonSerializer.Serialize(settings, JsonSerializationContext.Default.DockSettings);
+        var deserialized = JsonSerializer.Deserialize(json, JsonSerializationContext.Default.DockSettings);
+
+        Assert.IsNotNull(deserialized);
+        Assert.AreEqual(DockPlacement.Floating, deserialized!.Placement);
+        Assert.IsTrue(deserialized.AutoHide);
+        Assert.IsTrue(deserialized.FloatingSnapped);
+        Assert.AreEqual(DockSide.Right, deserialized.Side);
+        Assert.AreEqual(1280.0, deserialized.FloatingX);
+        Assert.AreEqual(240.0, deserialized.FloatingY);
+    }
+
+    [TestMethod]
+    public void DockSettings_Placement_DefaultsToEdge_ForLegacySettingsFiles()
+    {
+        // Existing settings files predate floating placement; they must keep the
+        // edge-anchored (app bar) behavior, with auto-hide off and not snapped.
+        var deserialized = CreateMinimalDockSettings();
+
+        Assert.AreEqual(DockPlacement.Edge, deserialized.Placement);
+        Assert.IsFalse(deserialized.AutoHide);
+        Assert.IsFalse(deserialized.FloatingSnapped);
+        Assert.AreEqual(0.0, deserialized.FloatingX);
+        Assert.AreEqual(0.0, deserialized.FloatingY);
+    }
+
     private static DockSettings CreateMinimalDockSettings()
     {
         // Deserialize from minimal JSON to avoid WinUI3 dependencies

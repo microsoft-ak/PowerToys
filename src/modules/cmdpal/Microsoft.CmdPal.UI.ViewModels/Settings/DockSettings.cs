@@ -23,6 +23,42 @@ public record DockSettings
     public DockSize DockSize { get; init; } = DockSize.Default;
 
     /// <summary>
+    /// Gets how the dock is placed on screen. <see cref="DockPlacement.Edge"/> anchors it
+    /// to a screen edge as an app bar (governed by <see cref="LengthMode"/>).
+    /// <see cref="DockPlacement.Floating"/> makes it a free, draggable, content-sized toolbar
+    /// that snaps to edges and can auto-hide, like PC Manager's toolbox.
+    /// </summary>
+    public DockPlacement Placement { get; init; } = DockPlacement.Edge;
+
+    /// <summary>
+    /// Gets the last free-floating top-left X position (in DIPs, virtual-screen coordinates)
+    /// used when <see cref="Placement"/> is <see cref="DockPlacement.Floating"/> and the dock
+    /// is not snapped to an edge.
+    /// </summary>
+    public double FloatingX { get; init; }
+
+    /// <summary>
+    /// Gets the last free-floating top-left Y position (in DIPs, virtual-screen coordinates).
+    /// </summary>
+    public double FloatingY { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether a floating dock is currently snapped to the
+    /// <see cref="Side"/> edge (overlay, auto-hide capable) versus free-floating at
+    /// <see cref="FloatingX"/>/<see cref="FloatingY"/>. Ignored unless <see cref="Placement"/>
+    /// is <see cref="DockPlacement.Floating"/>.
+    /// </summary>
+    public bool FloatingSnapped { get; init; }
+
+    /// <summary>
+    /// Gets a value indicating whether a snapped floating dock slides off-screen when the
+    /// pointer leaves it, revealing a thin strip, and slides back in on hover (PC Manager
+    /// toolbox style). Only applies when <see cref="Placement"/> is
+    /// <see cref="DockPlacement.Floating"/> and the dock is snapped to an edge.
+    /// </summary>
+    public bool AutoHide { get; init; }
+
+    /// <summary>
     /// Gets how much of the screen edge the dock occupies. <see cref="DockLengthMode.Full"/>
     /// spans the whole edge and reserves work-area space (app bar). <see cref="DockLengthMode.FitToContent"/>
     /// makes the dock a compact, resizable toolbar (like PC Manager's toolbox) aligned along the edge.
@@ -369,6 +405,18 @@ public enum DockBackdrop
 {
     Transparent,
     Acrylic,
+}
+
+/// <summary>
+/// Controls how the dock is placed on screen.
+/// </summary>
+public enum DockPlacement
+{
+    /// <summary>Anchored to a screen edge as an app bar (length governed by <see cref="DockLengthMode"/>).</summary>
+    Edge,
+
+    /// <summary>A free, draggable, content-sized toolbar that snaps to edges and can auto-hide.</summary>
+    Floating,
 }
 
 /// <summary>
