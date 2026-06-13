@@ -6199,4 +6199,44 @@ Text uses the current drawing color.</value>
     <value>Example: outlook</value>
     <comment>{Locked="outlook"}</comment>
   </data>
+  <data name="Shell_FloatingDock.Content" xml:space="preserve">
+    <value>Floating Dock</value>
+    <comment>Floating Dock is a product name.</comment>
+  </data>
+  <data name="FloatingDock.ModuleTitle" xml:space="preserve">
+    <value>Floating Dock</value>
+    <comment>Floating Dock is a product name.</comment>
+  </data>
+  <data name="FloatingDock.ModuleDescription" xml:space="preserve">
+    <value>A floating always-on-top dock for quick access to apps, files, folders, URLs, shell locations, and commands.</value>
+  </data>
+  <data name="FloatingDock_Enable_Toggle.Header" xml:space="preserve">
+    <value>Floating Dock</value>
+    <comment>Floating Dock is a product name.</comment>
+  </data>
+  <data name="FloatingDock_Behavior.Header" xml:space="preserve">
+    <value>Behavior</value>
+  </data>
+  <data name="FloatingDock_StartExpanded_Toggle.Header" xml:space="preserve">
+    <value>Start expanded</value>
+  </data>
+  <data name="FloatingDock_StartExpanded_Toggle.Description" xml:space="preserve">
+    <value>Show the shortcut strip when the dock starts.</value>
+  </data>
+  <data name="FloatingDock_ShowLabels_Toggle.Header" xml:space="preserve">
+    <value>Show shortcut labels</value>
+  </data>
+  <data name="FloatingDock_ShowLabels_Toggle.Description" xml:space="preserve">
+    <value>Show names under dock icons.</value>
+  </data>
+  <data name="FloatingDock_SnapThreshold.Header" xml:space="preserve">
+    <value>Edge snap distance</value>
+  </data>
+  <data name="FloatingDock_SnapThreshold.Description" xml:space="preserve">
+    <value>Distance in pixels from a monitor edge before the dock snaps.</value>
+  </data>
+  <data name="LearnMore_FloatingDock.Text" xml:space="preserve">
+    <value>Learn more about Floating Dock</value>
+    <comment>Floating Dock is a product name.</comment>
+  </data>
 </root>
