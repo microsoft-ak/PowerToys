@@ -6235,6 +6235,21 @@ Text uses the current drawing color.</value>
   <data name="FloatingDock_SnapThreshold.Description" xml:space="preserve">
     <value>Distance in pixels from a monitor edge before the dock snaps.</value>
   </data>
+  <data name="FloatingDock_AutoHide_Group.Header" xml:space="preserve">
+    <value>Auto-hide</value>
+  </data>
+  <data name="FloatingDock_AutoHide_Toggle.Header" xml:space="preserve">
+    <value>Hide against the screen edge</value>
+  </data>
+  <data name="FloatingDock_AutoHide_Toggle.Description" xml:space="preserve">
+    <value>When snapped to an edge, slide the dock off-screen while idle and reveal it on hover.</value>
+  </data>
+  <data name="FloatingDock_AutoHideDelay.Header" xml:space="preserve">
+    <value>Hide delay (milliseconds)</value>
+  </data>
+  <data name="FloatingDock_AutoHideDelay.Description" xml:space="preserve">
+    <value>How long the dock waits after the last interaction before hiding.</value>
+  </data>
   <data name="LearnMore_FloatingDock.Text" xml:space="preserve">
     <value>Learn more about Floating Dock</value>
     <comment>Floating Dock is a product name.</comment>

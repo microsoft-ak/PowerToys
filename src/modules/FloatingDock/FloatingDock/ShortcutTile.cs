@@ -79,9 +79,9 @@ internal sealed class ShortcutTile : Button
 
         var highContrast = SystemInformation.HighContrast;
         var fill = highContrast ? SystemColors.ButtonFace :
-            isPressed ? Color.FromArgb(55, 61, 70) :
-            isHovering ? Color.FromArgb(47, 52, 60) :
-            Color.FromArgb(39, 43, 50);
+            isPressed ? DockPalette.TilePressed :
+            isHovering ? DockPalette.TileHover :
+            DockPalette.TileFill;
 
         using (var brush = new SolidBrush(fill))
         using (var path = DockDrawing.CreateRoundedRectanglePath(new Rectangle(0, 4, Width - 1, Height - 8), 6))
@@ -100,7 +100,7 @@ internal sealed class ShortcutTile : Button
         if (ShowLabel)
         {
             using var font = new Font(Font.FontFamily, 7.5f, FontStyle.Regular);
-            var textColor = highContrast ? SystemColors.ControlText : Color.FromArgb(226, 231, 238);
+            var textColor = highContrast ? SystemColors.ControlText : DockPalette.TextPrimary;
             TextRenderer.DrawText(
                 e.Graphics,
                 Item.Name,

@@ -55,6 +55,29 @@
                             Value="{x:Bind ViewModel.SnapThreshold, Mode=TwoWay}" />
                     </tkcontrols:SettingsCard>
                 </controls:SettingsGroup>
+
+                <controls:SettingsGroup x:Uid="FloatingDock_AutoHide_Group" IsEnabled="{x:Bind ViewModel.IsEnabled, Mode=OneWay}">
+                    <tkcontrols:SettingsCard Name="FloatingDockAutoHideToggle" x:Uid="FloatingDock_AutoHide_Toggle">
+                        <ToggleSwitch
+                            x:Uid="ToggleSwitch"
+                            AutomationProperties.Name="{Binding ElementName=FloatingDockAutoHideToggle, Path=Header}"
+                            IsOn="{x:Bind ViewModel.AutoHide, Mode=TwoWay}" />
+                    </tkcontrols:SettingsCard>
+
+                    <tkcontrols:SettingsCard
+                        Name="FloatingDockAutoHideDelay"
+                        x:Uid="FloatingDock_AutoHideDelay"
+                        IsEnabled="{x:Bind ViewModel.AutoHide, Mode=OneWay}">
+                        <NumberBox
+                            MinWidth="{StaticResource SettingActionControlMinWidth}"
+                            LargeChange="500"
+                            Maximum="5000"
+                            Minimum="200"
+                            SmallChange="100"
+                            SpinButtonPlacementMode="Compact"
+                            Value="{x:Bind ViewModel.AutoHideDelayMs, Mode=TwoWay}" />
+                    </tkcontrols:SettingsCard>
+                </controls:SettingsGroup>
             </StackPanel>
         </controls:SettingsPageControl.ModuleContent>
 

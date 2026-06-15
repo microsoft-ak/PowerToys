@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.ComponentModel;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
@@ -29,6 +30,22 @@ internal sealed class DockActionButton : Button
     }
 
     public DockActionKind Kind { get; }
+
+    private DockOrientation orientation = DockOrientation.Horizontal;
+
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+    public DockOrientation DockOrientation
+    {
+        get => orientation;
+        set
+        {
+            if (orientation != value)
+            {
+                orientation = value;
+                Invalidate();
+            }
+        }
+    }
 
     protected override void OnMouseEnter(EventArgs e)
     {
@@ -65,8 +82,8 @@ internal sealed class DockActionButton : Button
         e.Graphics.Clear(Parent?.BackColor ?? DockPalette.Surface);
 
         var highContrast = SystemInformation.HighContrast;
-        var color = highContrast ? SystemColors.ControlText : Color.White;
-        var hoverFill = isPressed ? Color.FromArgb(42, Color.White) : Color.FromArgb(25, Color.White);
+        var color = highContrast ? SystemColors.ControlText : DockPalette.TextPrimary;
+        var hoverFill = isPressed ? DockPalette.TilePressed : DockPalette.TileHover;
 
         if (isHovering || isPressed)
         {
@@ -88,12 +105,22 @@ internal sealed class DockActionButton : Button
             e.Graphics.DrawLine(pen, center.X - 6, center.Y, center.X + 6, center.Y);
             e.Graphics.DrawLine(pen, center.X, center.Y - 6, center.X, center.Y + 6);
         }
-        else
+        else if (orientation == DockOrientation.Vertical)
         {
+            // Vertical (left/right-snapped) dock: horizontal ellipsis (dots in a row).
             var centerY = Height / 2;
             for (var i = -1; i <= 1; i++)
             {
                 e.Graphics.FillEllipse(brushDots, (Width / 2) + (i * 6) - 2, centerY - 2, 4, 4);
+            }
+        }
+        else
+        {
+            // Horizontal dock: vertical ellipsis (dots stacked along the Y axis).
+            var centerX = Width / 2;
+            for (var i = -1; i <= 1; i++)
+            {
+                e.Graphics.FillEllipse(brushDots, centerX - 2, (Height / 2) + (i * 6) - 2, 4, 4);
             }
         }
     }

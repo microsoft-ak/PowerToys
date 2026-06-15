@@ -60,4 +60,111 @@ public sealed class DockSnapTests
         Assert.AreEqual(1166, location.X);
         Assert.AreEqual(96, location.Y);
     }
+
+    [TestMethod]
+    public void PlaceAgainstEdge_RightEdge_SeatsFlushKeepingVerticalPosition()
+    {
+        var area = new Rectangle(0, 0, 1920, 1080);
+        var size = new Size(54, 320);
+
+        var result = DockSnap.PlaceAgainstEdge(size, new Point(900, 200), area, DockSnap.RightEdge);
+
+        Assert.AreEqual(1920 - 54, result.Left);
+        Assert.AreEqual(200, result.Top);
+        Assert.AreEqual(size.Width, result.Width);
+        Assert.AreEqual(size.Height, result.Height);
+    }
+
+    [TestMethod]
+    public void PlaceAgainstEdge_LeftEdge_SeatsFlushAtWorkingAreaLeft()
+    {
+        var area = new Rectangle(100, 50, 1000, 800);
+        var size = new Size(54, 300);
+
+        var result = DockSnap.PlaceAgainstEdge(size, new Point(500, 700), area, DockSnap.LeftEdge);
+
+        Assert.AreEqual(100, result.Left);
+
+        // The perpendicular position is clamped so the dock stays fully on-screen.
+        Assert.AreEqual(550, result.Top);
+    }
+
+    [TestMethod]
+    public void DetermineEdge_WhenCursorPinnedToLeft_SnapsLeftEvenIfDockEdgeFarFromScreen()
+    {
+        // The dock's left edge is 80px from the screen edge (outside the 32px threshold),
+        // because the grab point is well inside the dock. The cursor is pinned to the
+        // screen's left edge, so the snap must still resolve to the left edge.
+        var area = new Rectangle(0, 0, 1920, 1080);
+        var bounds = new Rectangle(80, 400, 160, 54);
+        var cursor = new Point(1, 430);
+
+        var edge = DockSnap.DetermineEdge(bounds, area, 32, cursor);
+
+        Assert.AreEqual(DockSnap.LeftEdge, edge);
+    }
+
+    [TestMethod]
+    public void DetermineEdge_WhenCursorAndDockAwayFromEdges_ReturnsNoEdge()
+    {
+        var area = new Rectangle(0, 0, 1920, 1080);
+        var bounds = new Rectangle(800, 400, 160, 54);
+        var cursor = new Point(880, 430);
+
+        var edge = DockSnap.DetermineEdge(bounds, area, 32, cursor);
+
+        Assert.AreEqual(DockSnap.NoEdge, edge);
+    }
+
+    [TestMethod]
+    public void DetermineEdge_WhenCursorMidScreen_FallsBackToWindowEdge()
+    {
+        // Cursor is mid-screen, so the dock's own edge proximity is the fallback signal:
+        // right edge is within the threshold (1790 + 160 = 1950, 30px from 1920) -> Right.
+        var area = new Rectangle(0, 0, 1920, 1080);
+        var bounds = new Rectangle(1790, 400, 160, 54);
+        var cursor = new Point(960, 430);
+
+        var edge = DockSnap.DetermineEdge(bounds, area, 32, cursor);
+
+        Assert.AreEqual(DockSnap.RightEdge, edge);
+    }
+
+    [TestMethod]
+    public void DetermineEdge_WhenCursorNearTop_SnapsTopEvenIfDockOverlapsRightEdge()
+    {
+        // The wide dock still overlaps the right edge (1700 + 200 = 1900, 20px from 1920),
+        // but the cursor is pushed to the top, so the snap must resolve to the top edge.
+        var area = new Rectangle(0, 0, 1920, 1080);
+        var bounds = new Rectangle(1700, 45, 200, 54);
+        var cursor = new Point(1750, 10);
+
+        var edge = DockSnap.DetermineEdge(bounds, area, 32, cursor);
+
+        Assert.AreEqual(DockSnap.TopEdge, edge);
+    }
+
+    [TestMethod]
+    public void DetermineEdge_WhenCursorNearBottom_SnapsBottom()
+    {
+        var area = new Rectangle(0, 0, 1920, 1080);
+        var bounds = new Rectangle(800, 980, 200, 54);
+        var cursor = new Point(900, 1075);
+
+        var edge = DockSnap.DetermineEdge(bounds, area, 32, cursor);
+
+        Assert.AreEqual(DockSnap.BottomEdge, edge);
+    }
+
+    [TestMethod]
+    public void PlaceAgainstEdge_NoEdge_ClampsWithoutSeating()
+    {
+        var area = new Rectangle(0, 0, 800, 600);
+        var size = new Size(160, 54);
+
+        var result = DockSnap.PlaceAgainstEdge(size, new Point(900, 300), area, DockSnap.NoEdge);
+
+        Assert.AreEqual(640, result.Left);
+        Assert.AreEqual(300, result.Top);
+    }
 }

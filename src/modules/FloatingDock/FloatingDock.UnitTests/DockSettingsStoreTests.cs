@@ -38,6 +38,8 @@ public sealed class DockSettingsStoreTests
         Assert.IsTrue(settings.StartExpanded);
         Assert.IsFalse(settings.ShowLabels);
         Assert.AreEqual(32, settings.SnapThreshold);
+        Assert.IsTrue(settings.AutoHide);
+        Assert.AreEqual(1000, settings.AutoHideDelayMs);
     }
 
     [TestMethod]
@@ -49,6 +51,8 @@ public sealed class DockSettingsStoreTests
             StartExpanded = false,
             ShowLabels = false,
             SnapThreshold = 64,
+            AutoHide = false,
+            AutoHideDelayMs = 2500,
         });
 
         var settings = store.LoadSettings();
@@ -56,6 +60,8 @@ public sealed class DockSettingsStoreTests
         Assert.IsFalse(settings.StartExpanded);
         Assert.IsFalse(settings.ShowLabels);
         Assert.AreEqual(64, settings.SnapThreshold);
+        Assert.IsFalse(settings.AutoHide);
+        Assert.AreEqual(2500, settings.AutoHideDelayMs);
     }
 
     [TestMethod]

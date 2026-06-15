@@ -14,30 +14,49 @@ namespace Microsoft.PowerToys.FloatingDock;
 
 internal sealed class DockForm : Form
 {
-    private const int DockHeight = 54;
-    private const int MinDockWidth = 154;
-    private const int CornerRadius = 7;
+    // The "breadth" is the dock's thickness: its height when horizontal, its width when vertical.
+    private const int DockBreadth = 54;
+    private const int MinHorizontalWidth = 154;
+    private const int MinVerticalHeight = 140;
+    private const int CornerRadius = 10;
+
+    // Sliver left on-screen when the dock auto-hides against an edge; also the notch grip.
+    private const int RevealStripPx = 6;
+    private const int NotchThickness = 4;
+    private const int NotchLength = 34;
 
     private readonly DockSettingsStore store;
     private readonly FlowLayoutPanel strip;
-    private readonly DockHubButton hubButton;
-    private readonly DockActionButton addButton;
     private readonly DockActionButton menuButton;
     private readonly DockSummaryPanel summaryPanel;
     private readonly DockSeparator separator;
     private readonly Timer settingsRefreshTimer;
+    private readonly Timer autoHideTimer;
+    private readonly Timer slideTimer;
     private readonly ToolTip toolTip = new();
     private DockSettings settings;
     private DockState state;
     private DateTime settingsLastWrite;
     private bool draggingWindow;
+    private bool dragMoved;
     private Point dragOffset;
+
+    private DockOrientation orientation = DockOrientation.Horizontal;
+    private string snapEdge = DockSnap.NoEdge;
+    private Rectangle shownBounds;
+    private bool isHidden;
+    private bool modalOpen;
+    private DateTime lastInteractionUtc = DateTime.UtcNow;
+    private Point slideTarget;
 
     public DockForm(DockSettingsStore store)
     {
         this.store = store;
         settings = store.LoadSettings();
         state = store.LoadState(settings);
+
+        snapEdge = state.SnapEdge ?? DockSnap.NoEdge;
+        orientation = IsVerticalEdge(snapEdge) ? DockOrientation.Vertical : DockOrientation.Horizontal;
 
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
 
@@ -67,41 +86,36 @@ internal sealed class DockForm : Form
             Margin = Padding.Empty,
         };
 
-        hubButton = new DockHubButton();
-        hubButton.Click += (_, _) => ToggleExpanded();
-
         summaryPanel = new DockSummaryPanel();
-        summaryPanel.DoubleClick += (_, _) => AddCustomShortcut();
+
+        // The summary panel doubles as the expand/collapse handle now that the hub button
+        // is gone. A pure click toggles; a click that moved the window (a drag) does not.
+        summaryPanel.Click += (_, _) =>
+        {
+            if (!dragMoved)
+            {
+                ToggleExpanded();
+            }
+        };
         summaryPanel.DragEnter += OnExternalDragEnter;
         summaryPanel.DragDrop += OnExternalDragDrop;
 
         separator = new DockSeparator();
 
-        addButton = new DockActionButton(DockActionKind.Add)
-        {
-            AllowDrop = true,
-        };
-        addButton.Click += (_, _) => AddCustomShortcut();
-        addButton.DragEnter += OnExternalDragEnter;
-        addButton.DragDrop += OnExternalDragDrop;
-
         menuButton = new DockActionButton(DockActionKind.More);
         menuButton.Click += (_, _) => ShowDockMenu();
 
-        toolTip.SetToolTip(hubButton, "Expand or collapse");
-        toolTip.SetToolTip(summaryPanel, "Drag the dock or drop shortcuts here");
-        toolTip.SetToolTip(addButton, "Add shortcut");
+        toolTip.SetToolTip(summaryPanel, "Click to expand or collapse, drag to move, or drop shortcuts here");
         toolTip.SetToolTip(menuButton, "More options");
 
         Controls.Add(strip);
         ApplyTheme();
         BuildStrip(persist: false);
-        ApplySavedLocation();
+        InitializePlacement();
         PersistState();
 
         AttachWindowDrag(this);
         AttachWindowDrag(strip);
-        AttachWindowDrag(hubButton);
         AttachWindowDrag(summaryPanel);
 
         KeyDown += OnDockKeyDown;
@@ -113,18 +127,30 @@ internal sealed class DockForm : Form
 
         ContextMenuStrip = CreateDockMenu();
 
-        settingsRefreshTimer = new Timer
-        {
-            Interval = 1000,
-        };
+        settingsRefreshTimer = new Timer { Interval = 1000 };
         settingsRefreshTimer.Tick += (_, _) => RefreshSettingsIfChanged();
         settingsRefreshTimer.Start();
+
+        autoHideTimer = new Timer { Interval = 120 };
+        autoHideTimer.Tick += (_, _) => OnAutoHidePoll();
+        autoHideTimer.Start();
+
+        slideTimer = new Timer { Interval = 15 };
+        slideTimer.Tick += (_, _) => OnSlideTick();
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        ApplyGlass();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         PersistState();
         settingsRefreshTimer.Stop();
+        autoHideTimer.Stop();
+        slideTimer.Stop();
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
         toolTip.Dispose();
         base.OnFormClosing(e);
@@ -137,16 +163,53 @@ internal sealed class DockForm : Form
         var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
         using var path = DockDrawing.CreateRoundedRectanglePath(bounds, CornerRadius);
         using var fill = new SolidBrush(SystemInformation.HighContrast ? SystemColors.Window : DockPalette.Surface);
-        using var border = new Pen(SystemInformation.HighContrast ? SystemColors.ControlText : Color.FromArgb(78, 82, 90), 1.0f);
+        using var border = new Pen(SystemInformation.HighContrast ? SystemColors.ControlText : DockPalette.Border, 1.0f);
 
         e.Graphics.FillPath(fill, path);
         e.Graphics.DrawPath(border, path);
+
+        DrawNotch(e.Graphics);
     }
 
     protected override void OnSizeChanged(EventArgs e)
     {
         base.OnSizeChanged(e);
         UpdateWindowRegion();
+    }
+
+    private static bool IsVerticalEdge(string edge) => edge is DockSnap.LeftEdge or DockSnap.RightEdge;
+
+    private void DrawNotch(Graphics graphics)
+    {
+        if (snapEdge == DockSnap.NoEdge)
+        {
+            return;
+        }
+
+        // The notch sits on the inward-facing side of the dock (the sliver that stays
+        // on-screen when auto-hidden), so it doubles as the reveal grip (PC Manager style).
+        // When hidden it is brightened to stand out as a handle.
+        var color = isHidden ? DockPalette.AccentSoft : DockPalette.Notch;
+        using var brush = new SolidBrush(color);
+
+        const int gap = 2;
+        Rectangle rect = snapEdge switch
+        {
+            DockSnap.LeftEdge => new Rectangle(Width - gap - NotchThickness, (Height - NotchLength) / 2, NotchThickness, NotchLength),
+            DockSnap.RightEdge => new Rectangle(gap, (Height - NotchLength) / 2, NotchThickness, NotchLength),
+            DockSnap.TopEdge => new Rectangle((Width - NotchLength) / 2, Height - gap - NotchThickness, NotchLength, NotchThickness),
+            DockSnap.BottomEdge => new Rectangle((Width - NotchLength) / 2, gap, NotchLength, NotchThickness),
+            _ => Rectangle.Empty,
+        };
+
+        if (rect.IsEmpty)
+        {
+            return;
+        }
+
+        var radius = Math.Min(rect.Width, rect.Height) / 2;
+        using var notch = DockDrawing.CreateRoundedRectanglePath(rect, Math.Max(1, radius));
+        graphics.FillPath(brush, notch);
     }
 
     private void AttachWindowDrag(Control control)
@@ -161,40 +224,40 @@ internal sealed class DockForm : Form
         strip.SuspendLayout();
         strip.Controls.Clear();
 
-        hubButton.ShortcutCount = state.Shortcuts.Count;
-        hubButton.IsExpanded = state.IsExpanded;
-        hubButton.AccessibleDescription = state.IsExpanded ? "Collapse dock" : "Expand dock";
-        strip.Controls.Add(hubButton);
+        var vertical = orientation == DockOrientation.Vertical;
+        var showLabels = !vertical && settings.ShowLabels;
+        var verticalSummaryWidth = DockBreadth - Padding.Horizontal;
+        var count = state.Shortcuts.Count;
 
         if (state.IsExpanded)
         {
-            if (state.Shortcuts.Count == 0)
+            if (count == 0)
             {
-                summaryPanel.Width = 72;
-                summaryPanel.PrimaryText = "Drop links";
-                summaryPanel.SecondaryText = "or files";
+                summaryPanel.Width = vertical ? verticalSummaryWidth : 72;
+                summaryPanel.PrimaryText = vertical ? "Drop" : "Drop links";
+                summaryPanel.SecondaryText = vertical ? "files" : "or files";
                 strip.Controls.Add(summaryPanel);
             }
             else
             {
-                for (var index = 0; index < state.Shortcuts.Count; index++)
+                for (var index = 0; index < count; index++)
                 {
-                    strip.Controls.Add(CreateTile(state.Shortcuts[index], index));
+                    strip.Controls.Add(CreateTile(state.Shortcuts[index], index, showLabels));
                 }
             }
         }
         else
         {
-            summaryPanel.Width = 72;
-            summaryPanel.PrimaryText = "Shortcuts";
-            summaryPanel.SecondaryText = state.Shortcuts.Count == 1 ? "1 pinned" : $"{state.Shortcuts.Count} pinned";
+            summaryPanel.Width = vertical ? verticalSummaryWidth : 72;
+            summaryPanel.PrimaryText = vertical ? "Dock" : "Shortcuts";
+            summaryPanel.SecondaryText = vertical ? "tap" : "Tap to expand";
             strip.Controls.Add(summaryPanel);
         }
 
         strip.Controls.Add(separator);
-        strip.Controls.Add(addButton);
         strip.Controls.Add(menuButton);
 
+        ApplyOrientationLayout();
         strip.ResumeLayout();
         ResizeToContent();
         ApplyTheme();
@@ -206,9 +269,59 @@ internal sealed class DockForm : Form
         }
     }
 
-    private ShortcutTile CreateTile(ShortcutItem item, int index)
+    private void ApplyOrientationLayout()
     {
-        var tile = new ShortcutTile(item, index, settings.ShowLabels)
+        var innerBreadth = DockBreadth - Padding.Horizontal;
+
+        menuButton.DockOrientation = orientation;
+
+        if (orientation == DockOrientation.Vertical)
+        {
+            strip.FlowDirection = FlowDirection.TopDown;
+            separator.Orientation = DockOrientation.Vertical;
+
+            foreach (Control control in strip.Controls)
+            {
+                var side = Math.Max(0, (innerBreadth - control.Width) / 2);
+                control.Margin = new Padding(side, 0, side, 6);
+            }
+        }
+        else
+        {
+            strip.FlowDirection = FlowDirection.LeftToRight;
+            separator.Orientation = DockOrientation.Horizontal;
+
+            foreach (Control control in strip.Controls)
+            {
+                control.Margin = DefaultHorizontalMargin(control);
+            }
+        }
+    }
+
+    private Padding DefaultHorizontalMargin(Control control)
+    {
+        if (control == separator)
+        {
+            return new Padding(0, 4, 4, 4);
+        }
+
+        if (control == menuButton)
+        {
+            return new Padding(1, 0, 1, 0);
+        }
+
+        if (control is ShortcutTile)
+        {
+            return new Padding(0, 0, 6, 0);
+        }
+
+        // Summary panel.
+        return new Padding(0, 0, 8, 0);
+    }
+
+    private ShortcutTile CreateTile(ShortcutItem item, int index, bool showLabel)
+    {
+        var tile = new ShortcutTile(item, index, showLabel)
         {
             ContextMenuStrip = CreateShortcutMenu(index),
         };
@@ -250,6 +363,7 @@ internal sealed class DockForm : Form
         menu.Items.Add("Add shortcut...", null, (_, _) => AddCustomShortcut());
         menu.Items.Add(state.IsExpanded ? "Collapse" : "Expand", null, (_, _) => ToggleExpanded());
         menu.Items.Add(settings.ShowLabels ? "Hide labels" : "Show labels", null, (_, _) => ToggleLabels());
+        menu.Items.Add(settings.AutoHide ? "Disable auto-hide" : "Enable auto-hide", null, (_, _) => ToggleAutoHide());
         menu.Items.Add("Reset position", null, (_, _) => ResetPosition());
         return menu;
     }
@@ -274,19 +388,31 @@ internal sealed class DockForm : Form
     private void ResizeToContent()
     {
         strip.Location = new Point(Padding.Left, Padding.Top);
-
-        var contentWidth = strip.Controls.Cast<Control>().Sum(control => control.Width + control.Margin.Horizontal);
         var workingArea = Screen.FromPoint(Location).WorkingArea;
-        Width = Math.Min(Math.Max(contentWidth + Padding.Horizontal, MinDockWidth), Math.Max(workingArea.Width - 24, MinDockWidth));
-        Height = DockHeight;
+
+        if (orientation == DockOrientation.Vertical)
+        {
+            var contentHeight = strip.Controls.Cast<Control>().Sum(control => control.Height + control.Margin.Vertical);
+            Width = DockBreadth;
+            Height = Math.Min(Math.Max(contentHeight + Padding.Vertical, MinVerticalHeight), Math.Max(workingArea.Height - 24, MinVerticalHeight));
+        }
+        else
+        {
+            var contentWidth = strip.Controls.Cast<Control>().Sum(control => control.Width + control.Margin.Horizontal);
+            Height = DockBreadth;
+            Width = Math.Min(Math.Max(contentWidth + Padding.Horizontal, MinHorizontalWidth), Math.Max(workingArea.Width - 24, MinHorizontalWidth));
+        }
+
         strip.Size = new Size(Width - Padding.Horizontal, Height - Padding.Vertical);
         UpdateWindowRegion();
     }
 
     private void ApplyTheme()
     {
+        DockPalette.Refresh();
+
         BackColor = SystemInformation.HighContrast ? SystemColors.Window : DockPalette.Surface;
-        ForeColor = SystemInformation.HighContrast ? SystemColors.ControlText : Color.White;
+        ForeColor = SystemInformation.HighContrast ? SystemColors.ControlText : DockPalette.TextPrimary;
         strip.BackColor = BackColor;
 
         foreach (Control control in strip.Controls)
@@ -297,6 +423,20 @@ internal sealed class DockForm : Form
         }
 
         Invalidate();
+    }
+
+    private void ApplyGlass()
+    {
+        if (!IsHandleCreated)
+        {
+            return;
+        }
+
+        // Theme-aware chrome + rounded corners + subtle translucency for a glassmorphic
+        // surface that tracks the Windows light/dark theme.
+        DockNativeMethods.SetImmersiveDarkMode(Handle, !DockPalette.IsLight);
+        DockNativeMethods.SetRoundedCorners(Handle);
+        Opacity = DockPalette.IsLight ? 0.97 : 0.94;
     }
 
     private void UpdateWindowRegion()
@@ -317,6 +457,7 @@ internal sealed class DockForm : Form
         if (e.Category is UserPreferenceCategory.Color or UserPreferenceCategory.General or UserPreferenceCategory.VisualStyle)
         {
             ApplyTheme();
+            ApplyGlass();
         }
     }
 
@@ -338,38 +479,71 @@ internal sealed class DockForm : Form
     {
         state.IsExpanded = !state.IsExpanded;
         BuildStrip();
+        ReseatAgainstEdge();
+        MarkInteraction();
     }
 
     private void ToggleLabels()
     {
         settings.ShowLabels = !settings.ShowLabels;
         store.SaveSettings(settings);
-        ContextMenuStrip = CreateDockMenu();
         BuildStrip();
+        ReseatAgainstEdge();
+    }
+
+    private void ToggleAutoHide()
+    {
+        settings.AutoHide = !settings.AutoHide;
+        store.SaveSettings(settings);
+        ContextMenuStrip = CreateDockMenu();
+        if (!settings.AutoHide && isHidden)
+        {
+            Reveal();
+        }
+
+        MarkInteraction();
     }
 
     private void AddCustomShortcut()
     {
-        var target = InputDialog.ShowDialog(this, "Add shortcut", "File, app, URL, shell target, or command", string.Empty);
-        if (target is null)
+        modalOpen = true;
+        try
         {
-            return;
-        }
+            var target = InputDialog.ShowDialog(this, "Add shortcut", "File, app, URL, shell target, or command", string.Empty);
+            if (target is null)
+            {
+                return;
+            }
 
-        AddShortcut(ShortcutResolver.FromText(target));
+            AddShortcut(ShortcutResolver.FromText(target));
+        }
+        finally
+        {
+            modalOpen = false;
+            MarkInteraction();
+        }
     }
 
     private void RenameShortcut(int index)
     {
-        var current = state.Shortcuts[index];
-        var newName = InputDialog.ShowDialog(this, "Rename shortcut", "Display name", current.Name);
-        if (newName is null)
+        modalOpen = true;
+        try
         {
-            return;
-        }
+            var current = state.Shortcuts[index];
+            var newName = InputDialog.ShowDialog(this, "Rename shortcut", "Display name", current.Name);
+            if (newName is null)
+            {
+                return;
+            }
 
-        current.Name = newName;
-        BuildStrip();
+            current.Name = newName;
+            BuildStrip();
+        }
+        finally
+        {
+            modalOpen = false;
+            MarkInteraction();
+        }
     }
 
     private void MoveShortcut(int index, int direction)
@@ -384,12 +558,14 @@ internal sealed class DockForm : Form
         state.Shortcuts.RemoveAt(index);
         state.Shortcuts.Insert(newIndex, item);
         BuildStrip();
+        ReseatAgainstEdge();
     }
 
     private void RemoveShortcut(int index)
     {
         state.Shortcuts.RemoveAt(index);
         BuildStrip();
+        ReseatAgainstEdge();
     }
 
     private void ReorderShortcutFromDrop(DragEventArgs args, int targetIndex)
@@ -414,6 +590,7 @@ internal sealed class DockForm : Form
 
         state.Shortcuts.Insert(targetIndex, item);
         BuildStrip();
+        ReseatAgainstEdge();
     }
 
     private void AddShortcut(ShortcutItem item)
@@ -426,6 +603,7 @@ internal sealed class DockForm : Form
         state.Shortcuts.Add(item);
         state.IsExpanded = true;
         BuildStrip();
+        ReseatAgainstEdge();
     }
 
     private void OnExternalDragEnter(object? sender, DragEventArgs args)
@@ -469,8 +647,29 @@ internal sealed class DockForm : Form
             return;
         }
 
+        // Make sure the dock is fully on-screen before a drag starts.
+        if (isHidden)
+        {
+            Reveal();
+        }
+
+        slideTimer.Stop();
         draggingWindow = true;
+        dragMoved = false;
+        MarkInteraction();
+
+        // Moving away from a left/right edge returns the dock to its horizontal layout.
+        if (orientation == DockOrientation.Vertical)
+        {
+            orientation = DockOrientation.Horizontal;
+            snapEdge = DockSnap.NoEdge;
+            BuildStrip(persist: false);
+        }
+
         dragOffset = PointToClient(control.PointToScreen(args.Location));
+        dragOffset = new Point(
+            Math.Min(dragOffset.X, Math.Max(0, Width - 10)),
+            Math.Min(dragOffset.Y, Math.Max(0, Height - 10)));
     }
 
     private void ContinueWindowDrag(object? sender, MouseEventArgs args)
@@ -481,7 +680,14 @@ internal sealed class DockForm : Form
         }
 
         var cursor = Cursor.Position;
-        Location = new Point(cursor.X - dragOffset.X, cursor.Y - dragOffset.Y);
+        var newLocation = new Point(cursor.X - dragOffset.X, cursor.Y - dragOffset.Y);
+        if (newLocation != Location)
+        {
+            dragMoved = true;
+            Location = newLocation;
+        }
+
+        MarkInteraction();
     }
 
     private void EndWindowDrag(object? sender, MouseEventArgs args)
@@ -492,43 +698,231 @@ internal sealed class DockForm : Form
         }
 
         draggingWindow = false;
-        SnapToNearestEdge();
+
+        // A click that did not move the window (e.g. tapping the summary to expand) must
+        // not re-snap the dock; only an actual drag re-evaluates the snap edge.
+        if (dragMoved)
+        {
+            SnapToNearestEdge();
+        }
     }
 
     private void SnapToNearestEdge()
     {
         var screen = Screen.FromRectangle(Bounds);
         var area = screen.WorkingArea;
-        var result = DockSnap.Snap(Bounds, area, settings.SnapThreshold);
-        Bounds = result.Bounds;
+
+        var dropLocation = Bounds.Location;
+        var edge = DockSnap.DetermineEdge(Bounds, area, settings.SnapThreshold, Cursor.Position);
+
+        var desiredOrientation = IsVerticalEdge(edge) ? DockOrientation.Vertical : DockOrientation.Horizontal;
+        if (desiredOrientation != orientation)
+        {
+            orientation = desiredOrientation;
+            snapEdge = edge;
+            BuildStrip(persist: false);
+        }
+
+        snapEdge = edge;
+        var placed = DockSnap.PlaceAgainstEdge(Size, dropLocation, area, edge);
+        shownBounds = placed;
+        Bounds = placed;
 
         state.MonitorDeviceName = screen.DeviceName;
-        state.SnapEdge = result.Edge;
+        state.SnapEdge = edge;
         PersistState();
+        MarkInteraction();
     }
 
-    private void ApplySavedLocation()
+    // Re-seats the dock flush against its current edge after a layout/size change.
+    private void ReseatAgainstEdge()
+    {
+        if (snapEdge == DockSnap.NoEdge)
+        {
+            shownBounds = Bounds;
+            return;
+        }
+
+        var area = Screen.FromRectangle(Bounds).WorkingArea;
+        var placed = DockSnap.PlaceAgainstEdge(Size, shownBounds.Location, area, snapEdge);
+        shownBounds = placed;
+        if (!isHidden)
+        {
+            Bounds = placed;
+        }
+    }
+
+    private void InitializePlacement()
     {
         var screen = Screen.AllScreens.FirstOrDefault(candidate => candidate.DeviceName == state.MonitorDeviceName) ?? Screen.PrimaryScreen!;
         var area = screen.WorkingArea;
-        Location = store.HasSavedState ?
-            DockSnap.ClampLocation(Size, new Point(state.Left, state.Top), area) :
-            DockSnap.DefaultLocation(Size, area);
+
+        var location = store.HasSavedState
+            ? DockSnap.ClampLocation(Size, new Point(state.Left, state.Top), area)
+            : DockSnap.DefaultLocation(Size, area);
+
+        Location = location;
+
+        if (snapEdge != DockSnap.NoEdge)
+        {
+            Bounds = DockSnap.PlaceAgainstEdge(Size, location, area, snapEdge);
+        }
+
+        shownBounds = Bounds;
+        MarkInteraction();
     }
 
     private void ResetPosition()
     {
+        orientation = DockOrientation.Horizontal;
+        snapEdge = DockSnap.NoEdge;
+        BuildStrip(persist: false);
+
         var area = Screen.PrimaryScreen!.WorkingArea;
+        isHidden = false;
         Location = DockSnap.DefaultLocation(Size, area);
         SnapToNearestEdge();
     }
 
     private void PersistState()
     {
-        state.Left = Left;
-        state.Top = Top;
-        state.MonitorDeviceName = Screen.FromPoint(Location).DeviceName;
+        state.Left = isHidden ? shownBounds.Left : Left;
+        state.Top = isHidden ? shownBounds.Top : Top;
+        state.MonitorDeviceName = Screen.FromPoint(shownBounds.Location).DeviceName;
+        state.SnapEdge = snapEdge;
         store.SaveState(state);
+    }
+
+    private void MarkInteraction()
+    {
+        lastInteractionUtc = DateTime.UtcNow;
+    }
+
+    private void OnAutoHidePoll()
+    {
+        if (modalOpen || draggingWindow || (ContextMenuStrip?.Visible ?? false))
+        {
+            MarkInteraction();
+            if (isHidden)
+            {
+                Reveal();
+            }
+
+            return;
+        }
+
+        if (ActiveZoneContains(Cursor.Position))
+        {
+            MarkInteraction();
+            if (isHidden)
+            {
+                Reveal();
+            }
+
+            return;
+        }
+
+        var snapped = snapEdge != DockSnap.NoEdge;
+        if (settings.AutoHide && snapped && !isHidden &&
+            (DateTime.UtcNow - lastInteractionUtc).TotalMilliseconds >= Math.Max(200, settings.AutoHideDelayMs))
+        {
+            HideToEdge();
+        }
+    }
+
+    private bool ActiveZoneContains(Point point)
+    {
+        if (isHidden)
+        {
+            return HiddenRevealZone().Contains(point);
+        }
+
+        var zone = shownBounds;
+        zone.Inflate(2, 2);
+        return zone.Contains(point);
+    }
+
+    private Rectangle HiddenRevealZone()
+    {
+        var area = Screen.FromRectangle(shownBounds).WorkingArea;
+        var hot = RevealStripPx + 4;
+
+        return snapEdge switch
+        {
+            DockSnap.LeftEdge => new Rectangle(area.Left, shownBounds.Top, hot, shownBounds.Height),
+            DockSnap.RightEdge => new Rectangle(area.Right - hot, shownBounds.Top, hot, shownBounds.Height),
+            DockSnap.TopEdge => new Rectangle(shownBounds.Left, area.Top, shownBounds.Width, hot),
+            DockSnap.BottomEdge => new Rectangle(shownBounds.Left, area.Bottom - hot, shownBounds.Width, hot),
+            _ => Rectangle.Empty,
+        };
+    }
+
+    private Point HiddenLocation()
+    {
+        return snapEdge switch
+        {
+            DockSnap.LeftEdge => new Point(shownBounds.Left - (Width - RevealStripPx), shownBounds.Top),
+            DockSnap.RightEdge => new Point(shownBounds.Left + (Width - RevealStripPx), shownBounds.Top),
+            DockSnap.TopEdge => new Point(shownBounds.Left, shownBounds.Top - (Height - RevealStripPx)),
+            DockSnap.BottomEdge => new Point(shownBounds.Left, shownBounds.Top + (Height - RevealStripPx)),
+            _ => shownBounds.Location,
+        };
+    }
+
+    private void HideToEdge()
+    {
+        if (snapEdge == DockSnap.NoEdge)
+        {
+            return;
+        }
+
+        isHidden = true;
+        Invalidate();
+        StartSlide(HiddenLocation());
+    }
+
+    private void Reveal()
+    {
+        isHidden = false;
+        Invalidate();
+        StartSlide(shownBounds.Location);
+        MarkInteraction();
+    }
+
+    private void StartSlide(Point target)
+    {
+        slideTarget = target;
+        if (!slideTimer.Enabled)
+        {
+            slideTimer.Start();
+        }
+    }
+
+    private void OnSlideTick()
+    {
+        var current = Location;
+        var dx = slideTarget.X - current.X;
+        var dy = slideTarget.Y - current.Y;
+
+        if (Math.Abs(dx) <= 2 && Math.Abs(dy) <= 2)
+        {
+            Location = slideTarget;
+            slideTimer.Stop();
+            return;
+        }
+
+        Location = new Point(current.X + Step(dx), current.Y + Step(dy));
+    }
+
+    private static int Step(int delta)
+    {
+        var step = (int)(delta * 0.30);
+        if (step == 0 && delta != 0)
+        {
+            step = Math.Sign(delta);
+        }
+
+        return step;
     }
 
     private void RefreshSettingsIfChanged()
@@ -544,8 +938,13 @@ internal sealed class DockForm : Form
 
             settingsLastWrite = lastWrite;
             settings = store.LoadSettings();
-            ContextMenuStrip = CreateDockMenu();
             BuildStrip();
+            ReseatAgainstEdge();
+
+            if (!settings.AutoHide && isHidden)
+            {
+                Reveal();
+            }
         }
         catch
         {

@@ -52,13 +52,13 @@ internal sealed class DockSummaryPanel : Control
 
         if (isHovering && !SystemInformation.HighContrast)
         {
-            using var brush = new SolidBrush(Color.FromArgb(14, Color.White));
+            using var brush = new SolidBrush(DockPalette.HoverOverlay);
             using var path = DockDrawing.CreateRoundedRectanglePath(new Rectangle(0, 4, Width - 2, Height - 8), 6);
             e.Graphics.FillPath(brush, path);
         }
 
-        var primary = SystemInformation.HighContrast ? SystemColors.ControlText : Color.White;
-        var secondary = SystemInformation.HighContrast ? SystemColors.ControlText : Color.FromArgb(178, 186, 196);
+        var primary = SystemInformation.HighContrast ? SystemColors.ControlText : DockPalette.TextPrimary;
+        var secondary = SystemInformation.HighContrast ? SystemColors.ControlText : DockPalette.TextSecondary;
         using var primaryFont = new Font(Font.FontFamily, 8.5f, FontStyle.Bold);
         using var secondaryFont = new Font(Font.FontFamily, 8.0f, FontStyle.Regular);
 

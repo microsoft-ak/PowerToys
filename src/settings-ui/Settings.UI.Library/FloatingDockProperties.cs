@@ -14,6 +14,8 @@ namespace Microsoft.PowerToys.Settings.UI.Library
             StartExpanded = new BoolProperty(true);
             ShowLabels = new BoolProperty(false);
             SnapThreshold = new IntProperty(32);
+            AutoHide = new BoolProperty(true);
+            AutoHideDelayMs = new IntProperty(1000);
         }
 
         [JsonPropertyName("StartExpanded")]
@@ -24,6 +26,12 @@ namespace Microsoft.PowerToys.Settings.UI.Library
 
         [JsonPropertyName("SnapThreshold")]
         public IntProperty SnapThreshold { get; set; }
+
+        [JsonPropertyName("AutoHide")]
+        public BoolProperty AutoHide { get; set; }
+
+        [JsonPropertyName("AutoHideDelayMs")]
+        public IntProperty AutoHideDelayMs { get; set; }
 
         public override string ToString() => JsonSerializer.Serialize(this, SettingsSerializationContext.Default.FloatingDockProperties);
     }

@@ -24,6 +24,8 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         private bool startExpanded;
         private bool showLabels;
         private double snapThreshold;
+        private bool autoHide;
+        private double autoHideDelayMs;
 
         public FloatingDockViewModel(SettingsUtils settingsUtils, ISettingsRepository<GeneralSettings> settingsRepository, Func<string, int> ipcMSGCallBackFunc)
         {
@@ -38,6 +40,8 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             startExpanded = settings.Properties.StartExpanded.Value;
             showLabels = settings.Properties.ShowLabels.Value;
             snapThreshold = settings.Properties.SnapThreshold.Value;
+            autoHide = settings.Properties.AutoHide.Value;
+            autoHideDelayMs = settings.Properties.AutoHideDelayMs.Value;
         }
 
         public bool IsEnabled
@@ -100,6 +104,37 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                     snapThreshold = normalizedValue;
                     settings.Properties.SnapThreshold.Value = normalizedValue;
                     OnPropertyChanged(nameof(SnapThreshold));
+                    NotifySettingsChanged();
+                }
+            }
+        }
+
+        public bool AutoHide
+        {
+            get => autoHide;
+            set
+            {
+                if (autoHide != value)
+                {
+                    autoHide = value;
+                    settings.Properties.AutoHide.Value = value;
+                    OnPropertyChanged(nameof(AutoHide));
+                    NotifySettingsChanged();
+                }
+            }
+        }
+
+        public double AutoHideDelayMs
+        {
+            get => autoHideDelayMs;
+            set
+            {
+                var normalizedValue = Math.Clamp((int)Math.Round(value), 200, 5000);
+                if (Math.Abs(autoHideDelayMs - normalizedValue) > 0.1)
+                {
+                    autoHideDelayMs = normalizedValue;
+                    settings.Properties.AutoHideDelayMs.Value = normalizedValue;
+                    OnPropertyChanged(nameof(AutoHideDelayMs));
                     NotifySettingsChanged();
                 }
             }

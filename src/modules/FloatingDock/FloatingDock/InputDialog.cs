@@ -14,6 +14,8 @@ internal sealed class InputDialog : Form
 
     public InputDialog(string title, string label, string initialValue)
     {
+        DockPalette.Refresh();
+
         Text = title;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         StartPosition = FormStartPosition.CenterParent;
@@ -21,11 +23,16 @@ internal sealed class InputDialog : Form
         MaximizeBox = false;
         MinimizeBox = false;
         ShowInTaskbar = false;
+        BackColor = DockPalette.Surface;
+        ForeColor = DockPalette.TextPrimary;
+        Font = new Font("Segoe UI", 9f);
 
         var labelControl = new Label
         {
             AutoSize = true,
             Text = label,
+            ForeColor = DockPalette.TextSecondary,
+            BackColor = Color.Transparent,
             Location = new Point(12, 14),
         };
 
@@ -35,25 +42,13 @@ internal sealed class InputDialog : Form
             Location = new Point(12, 40),
             Size = new Size(396, 24),
             Text = initialValue,
+            BorderStyle = BorderStyle.FixedSingle,
+            BackColor = DockPalette.TileFill,
+            ForeColor = DockPalette.TextPrimary,
         };
 
-        var okButton = new Button
-        {
-            Anchor = AnchorStyles.Right | AnchorStyles.Bottom,
-            DialogResult = DialogResult.OK,
-            Text = "OK",
-            Location = new Point(252, 88),
-            Size = new Size(75, 28),
-        };
-
-        var cancelButton = new Button
-        {
-            Anchor = AnchorStyles.Right | AnchorStyles.Bottom,
-            DialogResult = DialogResult.Cancel,
-            Text = "Cancel",
-            Location = new Point(333, 88),
-            Size = new Size(75, 28),
-        };
+        var okButton = CreateButton("OK", DialogResult.OK, new Point(252, 88), accent: true);
+        var cancelButton = CreateButton("Cancel", DialogResult.Cancel, new Point(333, 88), accent: false);
 
         AcceptButton = okButton;
         CancelButton = cancelButton;
@@ -68,5 +63,36 @@ internal sealed class InputDialog : Form
         return dialog.ShowDialog(owner) == DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.Value)
             ? dialog.Value
             : null;
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+
+        // Mirror the Command Palette window styling: theme-aware chrome, rounded
+        // corners and an acrylic blur-behind material for a glassmorphic look.
+        DockNativeMethods.SetImmersiveDarkMode(Handle, !DockPalette.IsLight);
+        DockNativeMethods.SetRoundedCorners(Handle);
+        DockNativeMethods.EnableAcrylic(Handle, Color.FromArgb(DockPalette.IsLight ? 200 : 190, DockPalette.Surface));
+    }
+
+    private Button CreateButton(string text, DialogResult result, Point location, bool accent)
+    {
+        var button = new Button
+        {
+            Anchor = AnchorStyles.Right | AnchorStyles.Bottom,
+            DialogResult = result,
+            Text = text,
+            Location = location,
+            Size = new Size(75, 28),
+            FlatStyle = FlatStyle.Flat,
+            ForeColor = accent ? Color.White : DockPalette.TextPrimary,
+            BackColor = accent ? DockPalette.Accent : DockPalette.TileFill,
+            UseVisualStyleBackColor = false,
+        };
+
+        button.FlatAppearance.BorderColor = DockPalette.Border;
+        button.FlatAppearance.BorderSize = 1;
+        return button;
     }
 }

@@ -61,6 +61,8 @@ internal sealed class DockSettingsStore
             settings.StartExpanded = ReadBool(properties, "StartExpanded", settings.StartExpanded);
             settings.ShowLabels = ReadBool(properties, "ShowLabels", settings.ShowLabels);
             settings.SnapThreshold = ReadInt(properties, "SnapThreshold", settings.SnapThreshold);
+            settings.AutoHide = ReadBool(properties, "AutoHide", settings.AutoHide);
+            settings.AutoHideDelayMs = ReadInt(properties, "AutoHideDelayMs", settings.AutoHideDelayMs);
         }
         catch
         {
@@ -82,6 +84,8 @@ internal sealed class DockSettingsStore
                 StartExpanded = new { value = settings.StartExpanded },
                 ShowLabels = new { value = settings.ShowLabels },
                 SnapThreshold = new { value = settings.SnapThreshold },
+                AutoHide = new { value = settings.AutoHide },
+                AutoHideDelayMs = new { value = settings.AutoHideDelayMs },
             },
         };
 
