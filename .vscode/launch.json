@@ -11,6 +11,18 @@
     ],
     "configurations": [
         {
+            "name": "CmdPal: Build & Debug (x64 Debug)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "CmdPal: Stop + Build for Debug",
+            "program": "${workspaceFolder}\\x64\\Debug\\WinUI3Apps\\CmdPal\\Microsoft.CmdPal.UI.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}\\x64\\Debug\\WinUI3Apps\\CmdPal",
+            "env": {},
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
             "name": "Run native executable (no build)",
             "type": "cppvsdbg",
             "request": "launch",

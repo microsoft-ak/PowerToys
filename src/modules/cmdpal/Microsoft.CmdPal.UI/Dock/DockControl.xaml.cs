@@ -429,8 +429,8 @@ public sealed partial class DockControl : UserControl, IRecipient<CloseContextMe
     internal double MeasureDesiredLength(bool isHorizontal, double thicknessDips)
     {
         var available = isHorizontal
-            ? new Windows.Foundation.Size(double.PositiveInfinity, thicknessDips)
-            : new Windows.Foundation.Size(thicknessDips, double.PositiveInfinity);
+            ? new global::Windows.Foundation.Size(double.PositiveInfinity, thicknessDips)
+            : new global::Windows.Foundation.Size(thicknessDips, double.PositiveInfinity);
 
         RootGrid.Measure(available);
         var desired = isHorizontal ? RootGrid.DesiredSize.Width : RootGrid.DesiredSize.Height;

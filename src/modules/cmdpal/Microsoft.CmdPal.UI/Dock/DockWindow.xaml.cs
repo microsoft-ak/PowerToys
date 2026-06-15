@@ -1437,6 +1437,7 @@ public sealed partial class DockWindow : WindowEx,
                 UpdateTopmostState();
             }
         }
+
         // The system modal move loop (started when the user drags the floating
         // dock's grab handle) finished — decide whether to snap to an edge.
         else if (msg == PInvoke.WM_EXITSIZEMOVE)
