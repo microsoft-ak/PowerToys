@@ -72,6 +72,20 @@
     },
 
     {
+      "label": "PT: Build FloatingDock (dock helper)",
+      "detail": "Stops any running dock, then builds PowerToys.FloatingDock.exe (fast inner loop).",
+      "type": "shell",
+      "command": "taskkill /IM PowerToys.FloatingDock.exe /F >nul 2>&1 & dotnet build \"${workspaceFolder}\\src\\modules\\FloatingDock\\FloatingDock\\FloatingDock.csproj\" -c Debug -p:Platform=x64 -v m --nologo",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+
+    {
       "label": "PT: Build Essentials (quick)",
       "type": "shell",
       "command": "\"${workspaceFolder}\\tools\\build\\build-essentials.cmd\"",

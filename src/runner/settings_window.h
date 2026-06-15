@@ -13,6 +13,7 @@ enum class ESettingsWindowNames
     LightSwitch,
     FancyZones,
     FileLocksmith,
+    FloatingDock,
     Run,
     ImageResizer,
     KBM,

@@ -759,6 +759,8 @@ std::string ESettingsWindowNames_to_string(ESettingsWindowNames value)
         return "FancyZones";
     case ESettingsWindowNames::FileLocksmith:
         return "FileLocksmith";
+    case ESettingsWindowNames::FloatingDock:
+        return "FloatingDock";
     case ESettingsWindowNames::Run:
         return "Run";
     case ESettingsWindowNames::ImageResizer:
@@ -855,6 +857,10 @@ ESettingsWindowNames ESettingsWindowNames_from_string(std::string value)
     else if (value == "FileLocksmith")
     {
         return ESettingsWindowNames::FileLocksmith;
+    }
+    else if (value == "FloatingDock")
+    {
+        return ESettingsWindowNames::FloatingDock;
     }
     else if (value == "Run")
     {

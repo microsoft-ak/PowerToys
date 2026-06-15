@@ -211,6 +211,12 @@
                             AutomationProperties.AutomationId="ColorPickerNavItem"
                             Icon="{ui:BitmapIcon Source=/Assets/Settings/Icons/ColorPicker.png}" />
                         <NavigationViewItem
+                            x:Name="FloatingDockNavigationItem"
+                            x:Uid="Shell_FloatingDock"
+                            helpers:NavHelper.NavigateTo="views:FloatingDockPage"
+                            AutomationProperties.AutomationId="FloatingDockNavItem"
+                            Icon="{ui:BitmapIcon Source=/Assets/Settings/Icons/PowerToys.png}" />
+                        <NavigationViewItem
                             x:Name="LightSwitchNavigationItem"
                             x:Uid="Shell_LightSwitch"
                             helpers:NavHelper.NavigateTo="views:LightSwitchPage"
