@@ -365,6 +365,7 @@ internal sealed class DockForm : Form
         menu.Items.Add(settings.ShowLabels ? "Hide labels" : "Show labels", null, (_, _) => ToggleLabels());
         menu.Items.Add(settings.AutoHide ? "Disable auto-hide" : "Enable auto-hide", null, (_, _) => ToggleAutoHide());
         menu.Items.Add("Reset position", null, (_, _) => ResetPosition());
+        DockMenuRenderer.Apply(menu);
         return menu;
     }
 
@@ -376,6 +377,7 @@ internal sealed class DockForm : Form
         menu.Items.Add("Move left", null, (_, _) => MoveShortcut(index, -1));
         menu.Items.Add("Move right", null, (_, _) => MoveShortcut(index, 1));
         menu.Items.Add("Remove", null, (_, _) => RemoveShortcut(index));
+        DockMenuRenderer.Apply(menu);
         return menu;
     }
 
