@@ -6,7 +6,7 @@ using System;
 using System.Drawing;
 using System.Windows.Forms;
 
-namespace Microsoft.PowerToys.FloatingDock;
+namespace FloatingDock;
 
 internal sealed class InputDialog : Form
 {

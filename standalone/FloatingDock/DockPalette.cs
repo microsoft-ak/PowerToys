@@ -4,7 +4,7 @@
 
 using System.Drawing;
 
-namespace Microsoft.PowerToys.FloatingDock;
+namespace FloatingDock;
 
 /// <summary>
 /// Theme-aware color palette for the dock. Colors follow the current Windows
@@ -41,17 +41,10 @@ internal static class DockPalette
     /// <summary>Gets the secondary (low emphasis) text color.</summary>
     public static Color TextSecondary { get; private set; }
 
-<<<<<<< HEAD
-    /// <summary>Gets the accent color used for primary buttons (e.g. the dialog's OK button).</summary>
-    public static Color Accent { get; private set; }
-
-    /// <summary>Gets the brighter accent used to highlight the reveal notch when the dock is hidden.</summary>
-=======
     /// <summary>Gets the accent color used by primary buttons.</summary>
     public static Color Accent { get; private set; }
 
     /// <summary>Gets the brighter accent used to highlight the reveal notch when hidden.</summary>
->>>>>>> claude/nervous-snyder-06cf2f
     public static Color AccentSoft { get; private set; }
 
     /// <summary>Gets the separator line color.</summary>

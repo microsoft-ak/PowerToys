@@ -58,8 +58,6 @@ internal sealed class DockSettingsStore
                 return settings;
             }
 
-            settings.StartExpanded = ReadBool(properties, "StartExpanded", settings.StartExpanded);
-            settings.ShowLabels = ReadBool(properties, "ShowLabels", settings.ShowLabels);
             settings.SnapThreshold = ReadInt(properties, "SnapThreshold", settings.SnapThreshold);
             settings.AutoHide = ReadBool(properties, "AutoHide", settings.AutoHide);
             settings.AutoHideDelayMs = ReadInt(properties, "AutoHideDelayMs", settings.AutoHideDelayMs);
@@ -81,8 +79,6 @@ internal sealed class DockSettingsStore
             version = "1.0",
             properties = new
             {
-                StartExpanded = new { value = settings.StartExpanded },
-                ShowLabels = new { value = settings.ShowLabels },
                 SnapThreshold = new { value = settings.SnapThreshold },
                 AutoHide = new { value = settings.AutoHide },
                 AutoHideDelayMs = new { value = settings.AutoHideDelayMs },
@@ -92,7 +88,7 @@ internal sealed class DockSettingsStore
         File.WriteAllText(SettingsFilePath, JsonSerializer.Serialize(payload, SerializerOptions));
     }
 
-    public DockState LoadState(DockSettings settings)
+    public DockState LoadState()
     {
         try
         {
@@ -109,10 +105,7 @@ internal sealed class DockSettingsStore
         {
         }
 
-        return new DockState
-        {
-            IsExpanded = settings.StartExpanded,
-        };
+        return new DockState();
     }
 
     public void SaveState(DockState state)

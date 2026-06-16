@@ -21,8 +21,6 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         private readonly GeneralSettings generalSettingsConfig;
         private FloatingDockSettings settings;
         private bool isEnabled;
-        private bool startExpanded;
-        private bool showLabels;
         private double snapThreshold;
         private bool autoHide;
         private double autoHideDelayMs;
@@ -37,8 +35,6 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
             settings = LoadSettings(settingsUtils);
 
             InitializeEnabledValue();
-            startExpanded = settings.Properties.StartExpanded.Value;
-            showLabels = settings.Properties.ShowLabels.Value;
             snapThreshold = settings.Properties.SnapThreshold.Value;
             autoHide = settings.Properties.AutoHide.Value;
             autoHideDelayMs = settings.Properties.AutoHideDelayMs.Value;
@@ -62,36 +58,6 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
         }
 
         public bool IsEnabledGpoConfigured => false;
-
-        public bool StartExpanded
-        {
-            get => startExpanded;
-            set
-            {
-                if (startExpanded != value)
-                {
-                    startExpanded = value;
-                    settings.Properties.StartExpanded.Value = value;
-                    OnPropertyChanged(nameof(StartExpanded));
-                    NotifySettingsChanged();
-                }
-            }
-        }
-
-        public bool ShowLabels
-        {
-            get => showLabels;
-            set
-            {
-                if (showLabels != value)
-                {
-                    showLabels = value;
-                    settings.Properties.ShowLabels.Value = value;
-                    OnPropertyChanged(nameof(ShowLabels));
-                    NotifySettingsChanged();
-                }
-            }
-        }
 
         public double SnapThreshold
         {

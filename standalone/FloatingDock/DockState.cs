@@ -4,7 +4,7 @@
 
 using System.Collections.Generic;
 
-namespace Microsoft.PowerToys.FloatingDock;
+namespace FloatingDock;
 
 internal sealed class DockState
 {

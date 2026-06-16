@@ -32,7 +32,7 @@ public static class FuzzTests
 
             var store = new DockSettingsStore(folder);
             _ = store.LoadSettings();
-            _ = store.LoadState(new DockSettings());
+            _ = store.LoadState();
         }
         finally
         {

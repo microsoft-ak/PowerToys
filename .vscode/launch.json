@@ -10,6 +10,48 @@
         }
     ],
     "configurations": [
+           {
+            "name": "FloatingDock: Build + Debug (dock helper)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "PT: Build FloatingDock (dock helper)",
+            "program": "${workspaceFolder}\\${input:arch}\\Debug\\PowerToys.FloatingDock.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}\\${input:arch}\\Debug",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
+            "name": "PowerToys Settings: Build + Debug",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "PT: Build Settings (PowerToys Settings UI)",
+            "program": "${workspaceFolder}\\${input:arch}\\Debug\\WinUI3Apps\\PowerToys.Settings.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}\\${input:arch}\\Debug\\WinUI3Apps",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
+            "name": "FloatingDock (dock helper, no build)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}\\${input:arch}\\Debug\\PowerToys.FloatingDock.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}\\${input:arch}\\Debug",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
+            "name": "PowerToys Settings (no build)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${workspaceFolder}\\${input:arch}\\Debug\\WinUI3Apps\\PowerToys.Settings.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}\\${input:arch}\\Debug\\WinUI3Apps",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
         {
             "name": "FloatingDock: Build + Debug (dock helper)",
             "type": "coreclr",
@@ -73,5 +115,16 @@
             "console": "internalConsole",
             "stopAtEntry": false
         },
+    ],
+    "compounds": [
+        {
+            "name": "FloatingDock + Settings: Build + Debug",
+            "preLaunchTask": "PT: Build FloatingDock + Settings",
+            "configurations": [
+                "FloatingDock (dock helper, no build)",
+                "PowerToys Settings (no build)"
+            ],
+            "stopAll": true
+        }
     ]
 }

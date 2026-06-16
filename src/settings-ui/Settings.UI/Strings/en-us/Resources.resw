@@ -6217,18 +6217,6 @@ Text uses the current drawing color.</value>
   <data name="FloatingDock_Behavior.Header" xml:space="preserve">
     <value>Behavior</value>
   </data>
-  <data name="FloatingDock_StartExpanded_Toggle.Header" xml:space="preserve">
-    <value>Start expanded</value>
-  </data>
-  <data name="FloatingDock_StartExpanded_Toggle.Description" xml:space="preserve">
-    <value>Show the shortcut strip when the dock starts.</value>
-  </data>
-  <data name="FloatingDock_ShowLabels_Toggle.Header" xml:space="preserve">
-    <value>Show shortcut labels</value>
-  </data>
-  <data name="FloatingDock_ShowLabels_Toggle.Description" xml:space="preserve">
-    <value>Show names under dock icons.</value>
-  </data>
   <data name="FloatingDock_SnapThreshold.Header" xml:space="preserve">
     <value>Edge snap distance</value>
   </data>

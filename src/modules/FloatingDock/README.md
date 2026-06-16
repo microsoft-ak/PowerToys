@@ -2,15 +2,19 @@
 
 ## Features
 
-The dock behaves like the PC Manager toolbox:
+The dock is a compact, always-on-top strip for quick access to files, folders, apps, URLs, and commands. Drop items on it (or use **Add new** in the overflow menu) to add shortcuts; click a tile to launch it.
 
 - **Edge snapping + auto-hide**: drag the dock toward any monitor working-area edge (top, bottom, left, or right) to snap; the snap follows the cursor, so it locks onto whichever edge you push toward. When `AutoHide` is on, the dock slides off the edge after `AutoHideDelayMs` of inactivity, leaving a thin reveal notch. Hover the notch (or push the cursor to that screen edge) to slide it back in. Both are configurable on the Floating Dock settings page.
 - **Vertical transform**: snapping to the left or right edge re-lays the dock as a vertical column (and the overflow ellipsis switches to a horizontal layout); it returns to a horizontal strip as soon as you start dragging it again.
 - **Edge notch**: while snapped, a rounded grip is drawn on the inward-facing side. It is also the sliver that remains visible (and the reveal handle) when auto-hidden.
+<<<<<<< HEAD
 - **Themed surface**: colors follow the Windows light/dark app theme, and the window uses rounded corners and immersive dark/light chrome over a solid, theme-aligned fill (no translucency); the context menus and the Add/Rename pop-up modal use an acrylic blur-behind material like the Command Palette window.
 - **Expand/collapse**: click the summary panel (or use the overflow menu) to toggle between the compact summary and the full shortcut strip.
+=======
+- **Windows 11 glassmorphic surface**: colors follow the Windows light/dark app theme, and the dock uses rounded corners, immersive dark-mode chrome, and an acrylic blur-behind material whose tint intensity is tuned per theme. The Add/Rename pop-up modal and context menus use the same acrylic treatment.
+>>>>>>> claude/nervous-snyder-06cf2f
 
-Settings live under `properties` in `settings.json` (see "Reset local dock data"): `StartExpanded`, `ShowLabels`, `SnapThreshold`, `AutoHide`, `AutoHideDelayMs`.
+Settings live under `properties` in `settings.json` (see "Reset local dock data"): `SnapThreshold`, `AutoHide`, `AutoHideDelayMs`.
 
 Floating Dock is split into two projects:
 
@@ -88,7 +92,7 @@ cd C:\Git\PowerToys\x64\Debug
 5. Select `Floating Dock` in the left navigation.
 6. Turn the module on.
 
-The dock should appear as an always-on-top PC Manager-style toolbox: a compact dark rounded surface with shortcut icons and a vertical overflow (ellipsis) menu. Drag the dock body to move it, move it near a monitor working-area edge to snap, drop files/folders/shortcuts/URLs onto it to add launch shortcuts, and use the overflow menu (or double-click the summary, drag-drop, or Ctrl+N) to add shortcuts and right-click menus to rename, reorder, or remove items.
+The dock should appear as an always-on-top rounded themed surface with shortcut icons and an overflow (ellipsis) menu. Drag the dock body to move it, move it near a monitor working-area edge to snap, drop files/folders/shortcuts/URLs onto it to add launch shortcuts, and use **Add new** in the overflow menu (or drag-drop, or Ctrl+N) to add shortcuts and right-click menus to rename, reorder, or remove items.
 
 ## If the dock does not appear
 

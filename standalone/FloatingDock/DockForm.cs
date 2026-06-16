@@ -3,7 +3,6 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
-using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
@@ -11,7 +10,7 @@ using System.Linq;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
-namespace Microsoft.PowerToys.FloatingDock;
+namespace FloatingDock;
 
 internal sealed class DockForm : Form
 {
@@ -61,18 +60,12 @@ internal sealed class DockForm : Form
     private bool modalOpen;
     private DateTime lastInteractionUtc = DateTime.UtcNow;
     private Point slideTarget;
-    private ContextMenuStrip? dockMenu;
 
     public DockForm(DockSettingsStore store)
     {
         this.store = store;
         settings = store.LoadSettings();
-<<<<<<< HEAD
-        settingsLastWrite = GetSettingsLastWriteUtc();
-        state = store.LoadState(settings);
-=======
         state = store.LoadState();
->>>>>>> claude/nervous-snyder-06cf2f
 
         snapEdge = state.SnapEdge ?? DockSnap.NoEdge;
         orientation = IsVerticalEdge(snapEdge) ? DockOrientation.Vertical : DockOrientation.Horizontal;
@@ -87,8 +80,8 @@ internal sealed class DockForm : Form
         AllowDrop = true;
         DoubleBuffered = true;
         KeyPreview = true;
-        Text = "PowerToys Floating Dock";
-        AccessibleName = "PowerToys Floating Dock";
+        Text = "Floating Dock";
+        AccessibleName = "Floating Dock";
         AccessibleDescription = "Floating always-on-top shortcut dock";
         AccessibleRole = AccessibleRole.ToolBar;
         Padding = new Padding(6, 6, 6, 6);
@@ -109,25 +102,6 @@ internal sealed class DockForm : Form
             Cursor = Cursors.Default,
         };
 
-<<<<<<< HEAD
-        summaryPanel = new DockSummaryPanel();
-
-        // The summary panel doubles as the expand/collapse handle now that the hub button
-        // is gone. A pure click toggles; a click that moved the window (a drag) does not.
-        summaryPanel.Click += (_, _) =>
-        {
-            if (!dragMoved)
-            {
-                ToggleExpanded();
-            }
-        };
-        summaryPanel.DragEnter += OnExternalDragEnter;
-        summaryPanel.DragDrop += OnExternalDragDrop;
-
-        separator = new DockSeparator();
-
-=======
->>>>>>> claude/nervous-snyder-06cf2f
         menuButton = new DockActionButton();
         menuButton.Click += (_, _) => ShowDockMenu();
 
@@ -149,6 +123,8 @@ internal sealed class DockForm : Form
         strip.DragDrop += OnExternalDragDrop;
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
+        ContextMenuStrip = CreateDockMenu();
+
         settingsRefreshTimer = new Timer { Interval = 1000 };
         settingsRefreshTimer.Tick += (_, _) => RefreshSettingsIfChanged();
         settingsRefreshTimer.Start();
@@ -164,7 +140,7 @@ internal sealed class DockForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        ApplyWindowChrome();
+        ApplyGlass();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -174,32 +150,8 @@ internal sealed class DockForm : Form
         autoHideTimer.Stop();
         slideTimer.Stop();
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
+        toolTip.Dispose();
         base.OnFormClosing(e);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            // The shortcut tiles still parented by the strip are disposed by base.Dispose,
-            // but their icon bitmaps and per-item context menus are not owned by the tile,
-            // so release them here to avoid leaking GDI handles on shutdown.
-            foreach (var tile in strip.Controls.OfType<ShortcutTile>().ToArray())
-            {
-                tile.ContextMenuStrip?.Dispose();
-                var image = tile.Image;
-                tile.Image = null;
-                image?.Dispose();
-            }
-
-            settingsRefreshTimer.Dispose();
-            autoHideTimer.Dispose();
-            slideTimer.Dispose();
-            dockMenu?.Dispose();
-            toolTip.Dispose();
-        }
-
-        base.Dispose(disposing);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -268,14 +220,7 @@ internal sealed class DockForm : Form
     private void BuildStrip(bool persist = true)
     {
         strip.SuspendLayout();
-
-        // Capture the tiles being replaced and dispose them (with their icon bitmaps and
-        // per-item context menus) once the current event finishes — see ScheduleTileDisposal
-        // for why disposal is deferred. The reusable summary/separator/menu controls are
-        // detached by Clear and re-added below, so they are not disposed.
-        var staleTiles = strip.Controls.OfType<ShortcutTile>().ToArray();
         strip.Controls.Clear();
-        ScheduleTileDisposal(staleTiles);
 
         // The overflow (...) button leads the strip: left edge when horizontal, top edge
         // when vertical. Shortcuts follow after it.
@@ -291,7 +236,7 @@ internal sealed class DockForm : Form
         strip.ResumeLayout();
         ResizeToContent();
         ApplyTheme();
-        UpdateDockMenu();
+        ContextMenuStrip = CreateDockMenu();
 
         if (persist)
         {
@@ -387,7 +332,7 @@ internal sealed class DockForm : Form
         menu.Items.Add(settings.AutoHide ? "Disable auto-hide" : "Enable auto-hide", null, (_, _) => ToggleAutoHide());
         menu.Items.Add("Reset position", null, (_, _) => ResetPosition());
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add("Settings", null, (_, _) => OpenSettings());
+        menu.Items.Add("Settings...", null, (_, _) => ShowSettings());
         DockMenuRenderer.Apply(menu);
         return menu;
     }
@@ -407,95 +352,36 @@ internal sealed class DockForm : Form
 
     private void ShowDockMenu()
     {
-        UpdateDockMenu();
-        dockMenu!.Show(menuButton, new Point(0, menuButton.Height + 2));
+        ContextMenuStrip = CreateDockMenu();
+        ContextMenuStrip.Show(menuButton, new Point(0, menuButton.Height + 2));
     }
 
-    // Rebuilds the dock context menu (its labels are state-dependent) and disposes the
-    // previous one. Disposal is deferred because the replacement is often triggered from
-    // within the old menu's own item-click handler, where tearing it down synchronously
-    // would corrupt the in-progress event.
-    private void UpdateDockMenu()
+    private void ShowSettings()
     {
-        var previous = dockMenu;
-        dockMenu = CreateDockMenu();
-        ContextMenuStrip = dockMenu;
-        ScheduleMenuDisposal(previous);
-    }
-
-    private void ScheduleMenuDisposal(ContextMenuStrip? menu)
-    {
-        if (menu is null)
-        {
-            return;
-        }
-
-        if (IsHandleCreated)
-        {
-            BeginInvoke(new Action(menu.Dispose));
-        }
-        else
-        {
-            menu.Dispose();
-        }
-    }
-
-    // Disposes shortcut tiles that were just removed from the strip, along with their icon
-    // bitmaps and per-item context menus (none of which the strip disposes on its own).
-    // Deferred to the next message-loop turn: BuildStrip frequently runs from inside a
-    // tile's context-menu item click (Move/Remove), and disposing that menu mid-event
-    // would throw.
-    private void ScheduleTileDisposal(ShortcutTile[] tiles)
-    {
-        if (tiles.Length == 0)
-        {
-            return;
-        }
-
-        void DisposeTiles()
-        {
-            foreach (var tile in tiles)
-            {
-                toolTip.SetToolTip(tile, null);
-                tile.ContextMenuStrip?.Dispose();
-                var image = tile.Image;
-                tile.Image = null;
-                image?.Dispose();
-                tile.Dispose();
-            }
-        }
-
-        if (IsHandleCreated)
-        {
-            BeginInvoke(new Action(DisposeTiles));
-        }
-        else
-        {
-            DisposeTiles();
-        }
-    }
-
-    // Opens the PowerToys Settings app. The helper ships next to PowerToys.exe, with the
-    // Settings app in the WinUI3Apps subfolder (its location both when installed and in the
-    // repo's x64\Debug output).
-    private void OpenSettings()
-    {
+        modalOpen = true;
         try
         {
-            var baseDir = AppContext.BaseDirectory;
-            var settingsExe = Path.Combine(baseDir, "WinUI3Apps", "PowerToys.Settings.exe");
-            if (!File.Exists(settingsExe))
+            using var dialog = new SettingsDialog(settings);
+            if (dialog.ShowDialog(this) != DialogResult.OK)
             {
-                settingsExe = Path.Combine(baseDir, "PowerToys.Settings.exe");
+                return;
             }
 
-            if (File.Exists(settingsExe))
+            settings = dialog.Settings;
+            store.SaveSettings(settings);
+            settingsLastWrite = File.Exists(store.SettingsFilePath) ? File.GetLastWriteTimeUtc(store.SettingsFilePath) : DateTime.MinValue;
+            BuildStrip();
+            ReseatAgainstEdge();
+
+            if (!settings.AutoHide && isHidden)
             {
-                Process.Start(new ProcessStartInfo { FileName = settingsExe, UseShellExecute = true });
+                Reveal();
             }
         }
-        catch
+        finally
         {
+            modalOpen = false;
+            MarkInteraction();
         }
     }
 
@@ -539,23 +425,17 @@ internal sealed class DockForm : Form
         Invalidate();
     }
 
-    private void ApplyWindowChrome()
+    private void ApplyGlass()
     {
         if (!IsHandleCreated)
         {
             return;
         }
 
-<<<<<<< HEAD
-        // Theme-aware window chrome: immersive dark/light title styling and rounded corners
-        // that track the Windows app theme. The dock surface is painted as a solid themed
-        // fill (see OnPaint), not a translucent/acrylic material.
-=======
         // Clean, theme-aligned surface: a solid dock that is dark in dark mode and light
         // in light mode, with Windows 11 immersive chrome and rounded corners. No
         // translucency, so the dock never bleeds the desktop wallpaper through and stays
         // visually calm.
->>>>>>> claude/nervous-snyder-06cf2f
         DockNativeMethods.SetImmersiveDarkMode(Handle, !DockPalette.IsLight);
         DockNativeMethods.SetRoundedCorners(Handle);
     }
@@ -578,7 +458,7 @@ internal sealed class DockForm : Form
         if (e.Category is UserPreferenceCategory.Color or UserPreferenceCategory.General or UserPreferenceCategory.VisualStyle)
         {
             ApplyTheme();
-            ApplyWindowChrome();
+            ApplyGlass();
         }
     }
 
@@ -595,7 +475,7 @@ internal sealed class DockForm : Form
     {
         settings.AutoHide = !settings.AutoHide;
         store.SaveSettings(settings);
-        UpdateDockMenu();
+        ContextMenuStrip = CreateDockMenu();
         if (!settings.AutoHide && isHidden)
         {
             Reveal();
@@ -928,7 +808,7 @@ internal sealed class DockForm : Form
 
     private void OnAutoHidePoll()
     {
-        if (modalOpen || draggingWindow || IsAnyMenuOpen())
+        if (modalOpen || draggingWindow || (ContextMenuStrip?.Visible ?? false))
         {
             MarkInteraction();
             if (isHidden)
@@ -956,18 +836,6 @@ internal sealed class DockForm : Form
         {
             HideToEdge();
         }
-    }
-
-    // True while the dock menu or any shortcut's context menu is open, so auto-hide does
-    // not slide the dock out from under an open menu.
-    private bool IsAnyMenuOpen()
-    {
-        if (ContextMenuStrip?.Visible == true)
-        {
-            return true;
-        }
-
-        return strip.Controls.OfType<ShortcutTile>().Any(tile => tile.ContextMenuStrip?.Visible == true);
     }
 
     private bool ActiveZoneContains(Point point)
@@ -1078,16 +946,16 @@ internal sealed class DockForm : Form
 
     private void RefreshSettingsIfChanged()
     {
-        var lastWrite = GetSettingsLastWriteUtc();
-        if (lastWrite == settingsLastWrite)
-        {
-            return;
-        }
-
-        settingsLastWrite = lastWrite;
-
         try
         {
+            var settingsPath = store.SettingsFilePath;
+            var lastWrite = File.Exists(settingsPath) ? File.GetLastWriteTimeUtc(settingsPath) : DateTime.MinValue;
+            if (lastWrite == settingsLastWrite)
+            {
+                return;
+            }
+
+            settingsLastWrite = lastWrite;
             settings = store.LoadSettings();
             BuildStrip();
             ReseatAgainstEdge();
@@ -1099,19 +967,6 @@ internal sealed class DockForm : Form
         }
         catch
         {
-        }
-    }
-
-    private DateTime GetSettingsLastWriteUtc()
-    {
-        try
-        {
-            var settingsPath = Path.Combine(store.ModuleFolder, "settings.json");
-            return File.Exists(settingsPath) ? File.GetLastWriteTimeUtc(settingsPath) : DateTime.MinValue;
-        }
-        catch
-        {
-            return DateTime.MinValue;
         }
     }
 }

@@ -7,22 +7,10 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
-namespace Microsoft.PowerToys.FloatingDock;
+namespace FloatingDock;
 
-/// <summary>
-/// The dock's overflow ("More") button: an ellipsis chip that opens the dock menu.
-/// The ellipsis is laid out vertically on a horizontal dock and horizontally on a
-/// vertical (left/right-snapped) dock.
-/// </summary>
 internal sealed class DockActionButton : Button
 {
-<<<<<<< HEAD
-    private bool isHovering;
-    private bool isPressed;
-    private DockOrientation orientation = DockOrientation.Horizontal;
-
-=======
->>>>>>> claude/nervous-snyder-06cf2f
     public DockActionButton()
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
@@ -32,19 +20,13 @@ internal sealed class DockActionButton : Button
         Margin = new Padding(1, 0, 1, 0);
         UseVisualStyleBackColor = false;
         TabStop = true;
-<<<<<<< HEAD
-=======
         Cursor = Cursors.Hand;
->>>>>>> claude/nervous-snyder-06cf2f
         AccessibleName = "Dock menu";
         AccessibleRole = AccessibleRole.PushButton;
     }
 
-<<<<<<< HEAD
-=======
     private DockOrientation orientation = DockOrientation.Horizontal;
 
->>>>>>> claude/nervous-snyder-06cf2f
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public DockOrientation DockOrientation
     {
@@ -64,22 +46,8 @@ internal sealed class DockActionButton : Button
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         e.Graphics.Clear(Parent?.BackColor ?? DockPalette.Surface);
 
-<<<<<<< HEAD
-        var highContrast = SystemInformation.HighContrast;
-        var color = highContrast ? SystemColors.ControlText : DockPalette.TextPrimary;
-        var hoverFill = isPressed ? DockPalette.TilePressed : DockPalette.TileHover;
-
-        if (isHovering || isPressed)
-        {
-            using var brush = new SolidBrush(highContrast ? SystemColors.Highlight : hoverFill);
-            using var path = DockDrawing.CreateRoundedRectanglePath(new Rectangle(2, 4, Width - 4, Height - 8), 6);
-            e.Graphics.FillPath(brush, path);
-        }
-
-=======
         // No hover/pressed background: just the ellipsis glyph on the dock surface.
         var color = SystemInformation.HighContrast ? SystemColors.ControlText : DockPalette.TextPrimary;
->>>>>>> claude/nervous-snyder-06cf2f
         using var brushDots = new SolidBrush(color);
 
         if (orientation == DockOrientation.Vertical)

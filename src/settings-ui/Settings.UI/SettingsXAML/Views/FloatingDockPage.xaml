@@ -30,20 +30,6 @@
                 </controls:GPOInfoControl>
 
                 <controls:SettingsGroup x:Uid="FloatingDock_Behavior" IsEnabled="{x:Bind ViewModel.IsEnabled, Mode=OneWay}">
-                    <tkcontrols:SettingsCard Name="FloatingDockStartExpandedToggle" x:Uid="FloatingDock_StartExpanded_Toggle">
-                        <ToggleSwitch
-                            x:Uid="ToggleSwitch"
-                            AutomationProperties.Name="{Binding ElementName=FloatingDockStartExpandedToggle, Path=Header}"
-                            IsOn="{x:Bind ViewModel.StartExpanded, Mode=TwoWay}" />
-                    </tkcontrols:SettingsCard>
-
-                    <tkcontrols:SettingsCard Name="FloatingDockShowLabelsToggle" x:Uid="FloatingDock_ShowLabels_Toggle">
-                        <ToggleSwitch
-                            x:Uid="ToggleSwitch"
-                            AutomationProperties.Name="{Binding ElementName=FloatingDockShowLabelsToggle, Path=Header}"
-                            IsOn="{x:Bind ViewModel.ShowLabels, Mode=TwoWay}" />
-                    </tkcontrols:SettingsCard>
-
                     <tkcontrols:SettingsCard Name="FloatingDockSnapThreshold" x:Uid="FloatingDock_SnapThreshold">
                         <NumberBox
                             MinWidth="{StaticResource SettingActionControlMinWidth}"

@@ -7,7 +7,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
-namespace Microsoft.PowerToys.FloatingDock;
+namespace FloatingDock;
 
 internal sealed class ShortcutTile : Button
 {
@@ -25,16 +25,11 @@ internal sealed class ShortcutTile : Button
         FlatAppearance.BorderSize = 0;
         Margin = new Padding(0, 0, 6, 0);
         Padding = Padding.Empty;
-<<<<<<< HEAD
-        Size = showLabel ? new Size(68, 40) : new Size(38, 40);
-        Image = ShortcutResolver.GetIcon(item);
-=======
         Size = new Size(38, 40);
 
         // Shortcut tiles launch a file/folder/app/URL, so show the hand cursor.
         Cursor = Cursors.Hand;
         Image = ShortcutResolver.GetIcon(item, true);
->>>>>>> claude/nervous-snyder-06cf2f
         Tag = index;
         UseVisualStyleBackColor = false;
         AutoEllipsis = true;
