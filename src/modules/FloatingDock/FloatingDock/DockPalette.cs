@@ -41,14 +41,11 @@ internal static class DockPalette
     /// <summary>Gets the secondary (low emphasis) text color.</summary>
     public static Color TextSecondary { get; private set; }
 
-    /// <summary>Gets the accent ring color used by the hub button.</summary>
+    /// <summary>Gets the accent color used for primary buttons (e.g. the dialog's OK button).</summary>
     public static Color Accent { get; private set; }
 
-    /// <summary>Gets the inner glyph/arc accent of the hub button.</summary>
+    /// <summary>Gets the brighter accent used to highlight the reveal notch when the dock is hidden.</summary>
     public static Color AccentSoft { get; private set; }
-
-    /// <summary>Gets the hub button background color.</summary>
-    public static Color HubFill { get; private set; }
 
     /// <summary>Gets the separator line color.</summary>
     public static Color Separator { get; private set; }
@@ -77,7 +74,6 @@ internal static class DockPalette
             TextSecondary = Color.FromArgb(96, 104, 116);
             Accent = Color.FromArgb(76, 99, 230);
             AccentSoft = Color.FromArgb(0, 120, 212);
-            HubFill = Color.FromArgb(226, 231, 245);
             Separator = Color.FromArgb(206, 211, 219);
             Notch = Color.FromArgb(150, 158, 170);
             HoverOverlay = Color.FromArgb(20, 0, 0, 0);
@@ -93,7 +89,6 @@ internal static class DockPalette
             TextSecondary = Color.FromArgb(178, 186, 196);
             Accent = Color.FromArgb(105, 118, 255);
             AccentSoft = Color.FromArgb(65, 182, 255);
-            HubFill = Color.FromArgb(37, 42, 57);
             Separator = Color.FromArgb(80, 86, 96);
             Notch = Color.FromArgb(120, 128, 140);
             HoverOverlay = Color.FromArgb(28, 255, 255, 255);

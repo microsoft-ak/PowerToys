@@ -13,6 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\FloatingDock\DockNativeMethods.cs" Link="DockNativeMethods.cs" />
     <Compile Include="..\FloatingDock\DockSettings.cs" Link="DockSettings.cs" />
     <Compile Include="..\FloatingDock\DockSettingsStore.cs" Link="DockSettingsStore.cs" />
     <Compile Include="..\FloatingDock\DockState.cs" Link="DockState.cs" />

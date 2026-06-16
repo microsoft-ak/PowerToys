@@ -48,11 +48,13 @@ internal sealed class DockForm : Form
     private bool modalOpen;
     private DateTime lastInteractionUtc = DateTime.UtcNow;
     private Point slideTarget;
+    private ContextMenuStrip? dockMenu;
 
     public DockForm(DockSettingsStore store)
     {
         this.store = store;
         settings = store.LoadSettings();
+        settingsLastWrite = GetSettingsLastWriteUtc();
         state = store.LoadState(settings);
 
         snapEdge = state.SnapEdge ?? DockSnap.NoEdge;
@@ -102,7 +104,7 @@ internal sealed class DockForm : Form
 
         separator = new DockSeparator();
 
-        menuButton = new DockActionButton(DockActionKind.More);
+        menuButton = new DockActionButton();
         menuButton.Click += (_, _) => ShowDockMenu();
 
         toolTip.SetToolTip(summaryPanel, "Click to expand or collapse, drag to move, or drop shortcuts here");
@@ -125,8 +127,6 @@ internal sealed class DockForm : Form
         strip.DragDrop += OnExternalDragDrop;
         SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
 
-        ContextMenuStrip = CreateDockMenu();
-
         settingsRefreshTimer = new Timer { Interval = 1000 };
         settingsRefreshTimer.Tick += (_, _) => RefreshSettingsIfChanged();
         settingsRefreshTimer.Start();
@@ -142,7 +142,7 @@ internal sealed class DockForm : Form
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
-        ApplyGlass();
+        ApplyWindowChrome();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -152,8 +152,32 @@ internal sealed class DockForm : Form
         autoHideTimer.Stop();
         slideTimer.Stop();
         SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
-        toolTip.Dispose();
         base.OnFormClosing(e);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            // The shortcut tiles still parented by the strip are disposed by base.Dispose,
+            // but their icon bitmaps and per-item context menus are not owned by the tile,
+            // so release them here to avoid leaking GDI handles on shutdown.
+            foreach (var tile in strip.Controls.OfType<ShortcutTile>().ToArray())
+            {
+                tile.ContextMenuStrip?.Dispose();
+                var image = tile.Image;
+                tile.Image = null;
+                image?.Dispose();
+            }
+
+            settingsRefreshTimer.Dispose();
+            autoHideTimer.Dispose();
+            slideTimer.Dispose();
+            dockMenu?.Dispose();
+            toolTip.Dispose();
+        }
+
+        base.Dispose(disposing);
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -222,7 +246,14 @@ internal sealed class DockForm : Form
     private void BuildStrip(bool persist = true)
     {
         strip.SuspendLayout();
+
+        // Capture the tiles being replaced and dispose them (with their icon bitmaps and
+        // per-item context menus) once the current event finishes — see ScheduleTileDisposal
+        // for why disposal is deferred. The reusable summary/separator/menu controls are
+        // detached by Clear and re-added below, so they are not disposed.
+        var staleTiles = strip.Controls.OfType<ShortcutTile>().ToArray();
         strip.Controls.Clear();
+        ScheduleTileDisposal(staleTiles);
 
         var vertical = orientation == DockOrientation.Vertical;
         var showLabels = !vertical && settings.ShowLabels;
@@ -261,7 +292,7 @@ internal sealed class DockForm : Form
         strip.ResumeLayout();
         ResizeToContent();
         ApplyTheme();
-        ContextMenuStrip = CreateDockMenu();
+        UpdateDockMenu();
 
         if (persist)
         {
@@ -383,8 +414,72 @@ internal sealed class DockForm : Form
 
     private void ShowDockMenu()
     {
-        ContextMenuStrip = CreateDockMenu();
-        ContextMenuStrip.Show(menuButton, new Point(0, menuButton.Height + 2));
+        UpdateDockMenu();
+        dockMenu!.Show(menuButton, new Point(0, menuButton.Height + 2));
+    }
+
+    // Rebuilds the dock context menu (its labels are state-dependent) and disposes the
+    // previous one. Disposal is deferred because the replacement is often triggered from
+    // within the old menu's own item-click handler, where tearing it down synchronously
+    // would corrupt the in-progress event.
+    private void UpdateDockMenu()
+    {
+        var previous = dockMenu;
+        dockMenu = CreateDockMenu();
+        ContextMenuStrip = dockMenu;
+        ScheduleMenuDisposal(previous);
+    }
+
+    private void ScheduleMenuDisposal(ContextMenuStrip? menu)
+    {
+        if (menu is null)
+        {
+            return;
+        }
+
+        if (IsHandleCreated)
+        {
+            BeginInvoke(new Action(menu.Dispose));
+        }
+        else
+        {
+            menu.Dispose();
+        }
+    }
+
+    // Disposes shortcut tiles that were just removed from the strip, along with their icon
+    // bitmaps and per-item context menus (none of which the strip disposes on its own).
+    // Deferred to the next message-loop turn: BuildStrip frequently runs from inside a
+    // tile's context-menu item click (Move/Remove), and disposing that menu mid-event
+    // would throw.
+    private void ScheduleTileDisposal(ShortcutTile[] tiles)
+    {
+        if (tiles.Length == 0)
+        {
+            return;
+        }
+
+        void DisposeTiles()
+        {
+            foreach (var tile in tiles)
+            {
+                toolTip.SetToolTip(tile, null);
+                tile.ContextMenuStrip?.Dispose();
+                var image = tile.Image;
+                tile.Image = null;
+                image?.Dispose();
+                tile.Dispose();
+            }
+        }
+
+        if (IsHandleCreated)
+        {
+            BeginInvoke(new Action(DisposeTiles));
+        }
+        else
+        {
+            DisposeTiles();
+        }
     }
 
     private void ResizeToContent()
@@ -427,18 +522,18 @@ internal sealed class DockForm : Form
         Invalidate();
     }
 
-    private void ApplyGlass()
+    private void ApplyWindowChrome()
     {
         if (!IsHandleCreated)
         {
             return;
         }
 
-        // Theme-aware chrome + rounded corners + subtle translucency for a glassmorphic
-        // surface that tracks the Windows light/dark theme.
+        // Theme-aware window chrome: immersive dark/light title styling and rounded corners
+        // that track the Windows app theme. The dock surface is painted as a solid themed
+        // fill (see OnPaint), not a translucent/acrylic material.
         DockNativeMethods.SetImmersiveDarkMode(Handle, !DockPalette.IsLight);
         DockNativeMethods.SetRoundedCorners(Handle);
-        Opacity = DockPalette.IsLight ? 0.97 : 0.94;
     }
 
     private void UpdateWindowRegion()
@@ -459,7 +554,7 @@ internal sealed class DockForm : Form
         if (e.Category is UserPreferenceCategory.Color or UserPreferenceCategory.General or UserPreferenceCategory.VisualStyle)
         {
             ApplyTheme();
-            ApplyGlass();
+            ApplyWindowChrome();
         }
     }
 
@@ -497,7 +592,7 @@ internal sealed class DockForm : Form
     {
         settings.AutoHide = !settings.AutoHide;
         store.SaveSettings(settings);
-        ContextMenuStrip = CreateDockMenu();
+        UpdateDockMenu();
         if (!settings.AutoHide && isHidden)
         {
             Reveal();
@@ -802,7 +897,7 @@ internal sealed class DockForm : Form
 
     private void OnAutoHidePoll()
     {
-        if (modalOpen || draggingWindow || (ContextMenuStrip?.Visible ?? false))
+        if (modalOpen || draggingWindow || IsAnyMenuOpen())
         {
             MarkInteraction();
             if (isHidden)
@@ -830,6 +925,18 @@ internal sealed class DockForm : Form
         {
             HideToEdge();
         }
+    }
+
+    // True while the dock menu or any shortcut's context menu is open, so auto-hide does
+    // not slide the dock out from under an open menu.
+    private bool IsAnyMenuOpen()
+    {
+        if (ContextMenuStrip?.Visible == true)
+        {
+            return true;
+        }
+
+        return strip.Controls.OfType<ShortcutTile>().Any(tile => tile.ContextMenuStrip?.Visible == true);
     }
 
     private bool ActiveZoneContains(Point point)
@@ -929,16 +1036,16 @@ internal sealed class DockForm : Form
 
     private void RefreshSettingsIfChanged()
     {
+        var lastWrite = GetSettingsLastWriteUtc();
+        if (lastWrite == settingsLastWrite)
+        {
+            return;
+        }
+
+        settingsLastWrite = lastWrite;
+
         try
         {
-            var settingsPath = Path.Combine(store.ModuleFolder, "settings.json");
-            var lastWrite = File.Exists(settingsPath) ? File.GetLastWriteTimeUtc(settingsPath) : DateTime.MinValue;
-            if (lastWrite == settingsLastWrite)
-            {
-                return;
-            }
-
-            settingsLastWrite = lastWrite;
             settings = store.LoadSettings();
             BuildStrip();
             ReseatAgainstEdge();
@@ -950,6 +1057,19 @@ internal sealed class DockForm : Form
         }
         catch
         {
+        }
+    }
+
+    private DateTime GetSettingsLastWriteUtc()
+    {
+        try
+        {
+            var settingsPath = Path.Combine(store.ModuleFolder, "settings.json");
+            return File.Exists(settingsPath) ? File.GetLastWriteTimeUtc(settingsPath) : DateTime.MinValue;
+        }
+        catch
+        {
+            return DateTime.MinValue;
         }
     }
 }

@@ -10,28 +10,29 @@ using System.Windows.Forms;
 
 namespace Microsoft.PowerToys.FloatingDock;
 
+/// <summary>
+/// The dock's overflow ("More") button: an ellipsis chip that opens the dock menu.
+/// The ellipsis is laid out vertically on a horizontal dock and horizontally on a
+/// vertical (left/right-snapped) dock.
+/// </summary>
 internal sealed class DockActionButton : Button
 {
     private bool isHovering;
     private bool isPressed;
+    private DockOrientation orientation = DockOrientation.Horizontal;
 
-    public DockActionButton(DockActionKind kind)
+    public DockActionButton()
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
-        Kind = kind;
         FlatStyle = FlatStyle.Flat;
         FlatAppearance.BorderSize = 0;
         Size = new Size(28, 40);
         Margin = new Padding(1, 0, 1, 0);
         UseVisualStyleBackColor = false;
         TabStop = true;
-        AccessibleName = kind == DockActionKind.Add ? "Add shortcut" : "Dock menu";
+        AccessibleName = "Dock menu";
         AccessibleRole = AccessibleRole.PushButton;
     }
-
-    public DockActionKind Kind { get; }
-
-    private DockOrientation orientation = DockOrientation.Horizontal;
 
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public DockOrientation DockOrientation
@@ -92,20 +93,9 @@ internal sealed class DockActionButton : Button
             e.Graphics.FillPath(brush, path);
         }
 
-        using var pen = new Pen(color, 2.0f)
-        {
-            StartCap = LineCap.Round,
-            EndCap = LineCap.Round,
-        };
         using var brushDots = new SolidBrush(color);
 
-        if (Kind == DockActionKind.Add)
-        {
-            var center = new Point(Width / 2, Height / 2);
-            e.Graphics.DrawLine(pen, center.X - 6, center.Y, center.X + 6, center.Y);
-            e.Graphics.DrawLine(pen, center.X, center.Y - 6, center.X, center.Y + 6);
-        }
-        else if (orientation == DockOrientation.Vertical)
+        if (orientation == DockOrientation.Vertical)
         {
             // Vertical (left/right-snapped) dock: horizontal ellipsis (dots in a row).
             var centerY = Height / 2;

@@ -11,6 +11,17 @@
     ],
     "configurations": [
         {
+            "name": "FloatingDock: Build + Debug (dock helper)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "PT: Build FloatingDock (dock helper)",
+            "program": "${workspaceFolder}\\${input:arch}\\Debug\\PowerToys.FloatingDock.exe",
+            "args": [],
+            "cwd": "${workspaceFolder}\\${input:arch}\\Debug",
+            "console": "internalConsole",
+            "stopAtEntry": false
+        },
+        {
             "name": "CmdPal: Build & Debug (x64 Debug)",
             "type": "coreclr",
             "request": "launch",

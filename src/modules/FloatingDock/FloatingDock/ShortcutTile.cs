@@ -27,7 +27,7 @@ internal sealed class ShortcutTile : Button
         Margin = new Padding(0, 0, 6, 0);
         Padding = Padding.Empty;
         Size = showLabel ? new Size(68, 40) : new Size(38, 40);
-        Image = ShortcutResolver.GetIcon(item, true);
+        Image = ShortcutResolver.GetIcon(item);
         Tag = index;
         UseVisualStyleBackColor = false;
         AutoEllipsis = true;

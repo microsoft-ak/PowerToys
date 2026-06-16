@@ -11,9 +11,10 @@ using Microsoft.Win32;
 namespace Microsoft.PowerToys.FloatingDock;
 
 /// <summary>
-/// Win32/DWM interop used to give the WinForms dock a modern, theme-aware,
-/// glassmorphic appearance (rounded corners, immersive dark mode title styling,
-/// and acrylic blur-behind material like the Command Palette window).
+/// Win32/DWM interop used to give the WinForms dock and its menus/dialogs a modern,
+/// theme-aware appearance: rounded corners and immersive dark/light title styling for
+/// the dock window (which uses a solid themed fill), plus an acrylic blur-behind material
+/// for the context menus and the Add/Rename dialog (like the Command Palette window).
 /// </summary>
 internal static class DockNativeMethods
 {
@@ -28,6 +29,10 @@ internal static class DockNativeMethods
     private const int AccentEnableBlurBehind = 3;
 
     private const string PersonalizeKey = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
+
+    // SHGetFileInfo flags for extracting a shell icon handle.
+    private const uint ShgfiIcon = 0x000000100;
+    private const uint ShgfiLargeIcon = 0x000000000;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct AccentPolicy
@@ -46,11 +51,32 @@ internal static class DockNativeMethods
         public int SizeOfData;
     }
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ShFileInfo
+    {
+        public IntPtr Handle;
+        public int IconIndex;
+        public uint Attributes;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string DisplayName;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string TypeName;
+    }
+
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     [DllImport("user32.dll")]
     private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SHGetFileInfo(string path, uint fileAttributes, ref ShFileInfo fileInfo, uint sizeFileInfo, uint flags);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 
     /// <summary>
     /// Reads the Windows "Apps use light theme" preference from the registry.
@@ -71,6 +97,36 @@ internal static class DockNativeMethods
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Returns the shell icon for <paramref name="path"/> as a bitmap, or <c>null</c> when
+    /// it cannot be resolved. Used to render real folder icons (which
+    /// <see cref="System.Drawing.Icon.ExtractAssociatedIcon"/> does not provide).
+    /// </summary>
+    public static Bitmap? TryGetShellIcon(string path)
+    {
+        var info = default(ShFileInfo);
+        var result = SHGetFileInfo(path, 0, ref info, (uint)Marshal.SizeOf<ShFileInfo>(), ShgfiIcon | ShgfiLargeIcon);
+        if (result == IntPtr.Zero || info.Handle == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var icon = Icon.FromHandle(info.Handle);
+            return icon.ToBitmap();
+        }
+        catch
+        {
+            return null;
+        }
+        finally
+        {
+            // Icon.FromHandle does not own the handle, so release the one SHGetFileInfo created.
+            DestroyIcon(info.Handle);
+        }
     }
 
     /// <summary>Applies the dark/light immersive mode flag (affects DWM-drawn chrome).</summary>

@@ -79,14 +79,6 @@ internal sealed class DockMenuRenderer : ToolStripProfessionalRenderer
         e.TextColor = e.Item.Enabled ? DockPalette.TextPrimary : DockPalette.TextSecondary;
         base.OnRenderItemText(e);
     }
-
-    protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
-    {
-        var bounds = e.Item.Bounds;
-        var y = bounds.Top + (bounds.Height / 2);
-        using var pen = new Pen(DockPalette.Separator);
-        e.Graphics.DrawLine(pen, bounds.Left + 10, y, bounds.Right - 10, y);
-    }
 }
 
 /// <summary>Maps the professional menu color slots onto the dock's theme palette.</summary>

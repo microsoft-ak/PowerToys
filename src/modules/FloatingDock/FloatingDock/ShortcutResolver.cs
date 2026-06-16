@@ -74,16 +74,24 @@ internal static class ShortcutResolver
         };
     }
 
-    public static Image GetIcon(ShortcutItem item, bool largeIcon)
+    public static Image GetIcon(ShortcutItem item)
     {
         try
         {
-            if (File.Exists(item.Target))
+            if (Directory.Exists(item.Target))
+            {
+                var folderIcon = DockNativeMethods.TryGetShellIcon(item.Target);
+                if (folderIcon is not null)
+                {
+                    return folderIcon;
+                }
+            }
+            else if (File.Exists(item.Target))
             {
                 using var icon = Icon.ExtractAssociatedIcon(item.Target);
                 if (icon is not null)
                 {
-                    return largeIcon ? icon.ToBitmap() : new Icon(icon, 16, 16).ToBitmap();
+                    return icon.ToBitmap();
                 }
             }
         }
@@ -93,7 +101,6 @@ internal static class ShortcutResolver
 
         return item.Kind switch
         {
-            ShortcutKind.Folder => SystemIcons.WinLogo.ToBitmap(),
             ShortcutKind.Url => SystemIcons.Information.ToBitmap(),
             ShortcutKind.Command => SystemIcons.Shield.ToBitmap(),
             _ => SystemIcons.Application.ToBitmap(),
