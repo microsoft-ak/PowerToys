@@ -11,18 +11,10 @@ namespace Microsoft.PowerToys.Settings.UI.Library
     {
         public FloatingDockProperties()
         {
-            StartExpanded = new BoolProperty(true);
-            ShowLabels = new BoolProperty(false);
             SnapThreshold = new IntProperty(32);
             AutoHide = new BoolProperty(true);
             AutoHideDelayMs = new IntProperty(1000);
         }
-
-        [JsonPropertyName("StartExpanded")]
-        public BoolProperty StartExpanded { get; set; }
-
-        [JsonPropertyName("ShowLabels")]
-        public BoolProperty ShowLabels { get; set; }
 
         [JsonPropertyName("SnapThreshold")]
         public IntProperty SnapThreshold { get; set; }

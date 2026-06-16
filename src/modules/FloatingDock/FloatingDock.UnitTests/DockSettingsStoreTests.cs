@@ -35,8 +35,6 @@ public sealed class DockSettingsStoreTests
 
         var settings = store.LoadSettings();
 
-        Assert.IsTrue(settings.StartExpanded);
-        Assert.IsFalse(settings.ShowLabels);
         Assert.AreEqual(32, settings.SnapThreshold);
         Assert.IsTrue(settings.AutoHide);
         Assert.AreEqual(1000, settings.AutoHideDelayMs);
@@ -48,8 +46,6 @@ public sealed class DockSettingsStoreTests
         var store = new DockSettingsStore(testFolder);
         store.SaveSettings(new DockSettings
         {
-            StartExpanded = false,
-            ShowLabels = false,
             SnapThreshold = 64,
             AutoHide = false,
             AutoHideDelayMs = 2500,
@@ -57,8 +53,6 @@ public sealed class DockSettingsStoreTests
 
         var settings = store.LoadSettings();
 
-        Assert.IsFalse(settings.StartExpanded);
-        Assert.IsFalse(settings.ShowLabels);
         Assert.AreEqual(64, settings.SnapThreshold);
         Assert.IsFalse(settings.AutoHide);
         Assert.AreEqual(2500, settings.AutoHideDelayMs);
@@ -70,7 +64,6 @@ public sealed class DockSettingsStoreTests
         var store = new DockSettingsStore(testFolder);
         var state = new DockState
         {
-            IsExpanded = false,
             Left = 12,
             Top = 34,
             MonitorDeviceName = "\\\\.\\DISPLAY2",
@@ -87,10 +80,9 @@ public sealed class DockSettingsStoreTests
         };
 
         store.SaveState(state);
-        var loaded = store.LoadState(new DockSettings());
+        var loaded = store.LoadState();
 
         Assert.IsTrue(store.HasSavedState);
-        Assert.IsFalse(loaded.IsExpanded);
         Assert.AreEqual(12, loaded.Left);
         Assert.AreEqual(34, loaded.Top);
         Assert.AreEqual("\\\\.\\DISPLAY2", loaded.MonitorDeviceName);
@@ -106,7 +98,6 @@ public sealed class DockSettingsStoreTests
         var stateJson =
             """
             {
-              "IsExpanded": true,
               "Left": 10,
               "Top": 20,
               "SnapEdge": "None",
@@ -122,7 +113,7 @@ public sealed class DockSettingsStoreTests
         File.WriteAllText(Path.Combine(testFolder, "dock.json"), stateJson);
         var store = new DockSettingsStore(testFolder);
 
-        var loaded = store.LoadState(new DockSettings());
+        var loaded = store.LoadState();
 
         Assert.AreEqual(1, loaded.Shortcuts.Count);
         Assert.AreEqual(ShortcutKind.Shell, loaded.Shortcuts[0].Kind);
@@ -138,8 +129,6 @@ public sealed class DockSettingsStoreTests
 
         var settings = store.LoadSettings();
 
-        Assert.IsTrue(settings.StartExpanded);
-        Assert.IsFalse(settings.ShowLabels);
         Assert.AreEqual(32, settings.SnapThreshold);
     }
 }

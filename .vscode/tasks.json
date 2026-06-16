@@ -86,6 +86,32 @@
     },
 
     {
+      "label": "PT: Build Settings (PowerToys Settings UI)",
+      "detail": "Stops any running Settings app, then builds PowerToys.Settings.exe and its dependencies (needs 'PT: Build Essentials' once first to restore packages).",
+      "type": "shell",
+      "command": "taskkill /IM PowerToys.Settings.exe /F >nul 2>&1 & \"${workspaceFolder}\\tools\\build\\build.cmd\" -Path \"${workspaceFolder}\\src\\settings-ui\\Settings.UI\" -Platform x64 -Configuration Debug",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+
+    {
+      "label": "PT: Build FloatingDock + Settings",
+      "detail": "One-click build for the dock helper and the PowerToys Settings UI (in sequence).",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "PT: Build FloatingDock (dock helper)",
+        "PT: Build Settings (PowerToys Settings UI)"
+      ],
+      "group": "build",
+      "problemMatcher": []
+    },
+
+    {
       "label": "PT: Build Essentials (quick)",
       "type": "shell",
       "command": "\"${workspaceFolder}\\tools\\build\\build-essentials.cmd\"",

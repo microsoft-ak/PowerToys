@@ -8,8 +8,6 @@ namespace Microsoft.PowerToys.FloatingDock;
 
 internal sealed class DockState
 {
-    public bool IsExpanded { get; set; } = true;
-
     public int Left { get; set; } = 80;
 
     public int Top { get; set; } = 120;

@@ -14,19 +14,21 @@ internal sealed class ShortcutTile : Button
     private bool isHovering;
     private bool isPressed;
 
-    public ShortcutTile(ShortcutItem item, int index, bool showLabel)
+    public ShortcutTile(ShortcutItem item, int index)
     {
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
 
         Item = item;
         Index = index;
-        ShowLabel = showLabel;
         AllowDrop = true;
         FlatStyle = FlatStyle.Flat;
         FlatAppearance.BorderSize = 0;
         Margin = new Padding(0, 0, 6, 0);
         Padding = Padding.Empty;
-        Size = showLabel ? new Size(68, 40) : new Size(38, 40);
+        Size = new Size(38, 40);
+
+        // Shortcut tiles launch a file/folder/app/URL, so show the hand cursor.
+        Cursor = Cursors.Hand;
         Image = ShortcutResolver.GetIcon(item, true);
         Tag = index;
         UseVisualStyleBackColor = false;
@@ -40,8 +42,6 @@ internal sealed class ShortcutTile : Button
     public ShortcutItem Item { get; }
 
     public int Index { get; }
-
-    private bool ShowLabel { get; }
 
     protected override void OnMouseEnter(EventArgs e)
     {
@@ -77,37 +77,23 @@ internal sealed class ShortcutTile : Button
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         e.Graphics.Clear(Parent?.BackColor ?? DockPalette.Surface);
 
-        var highContrast = SystemInformation.HighContrast;
-        var fill = highContrast ? SystemColors.ButtonFace :
-            isPressed ? DockPalette.TilePressed :
-            isHovering ? DockPalette.TileHover :
-            DockPalette.TileFill;
-
-        using (var brush = new SolidBrush(fill))
-        using (var path = DockDrawing.CreateRoundedRectanglePath(new Rectangle(0, 4, Width - 1, Height - 8), 6))
+        // No resting background: the icon sits directly on the dock surface. Only draw a
+        // subtle rounded highlight while hovered/pressed so clicks still read as buttons.
+        if (isHovering || isPressed)
         {
+            var fill = SystemInformation.HighContrast ? SystemColors.Highlight :
+                isPressed ? DockPalette.TilePressed : DockPalette.TileHover;
+            using var brush = new SolidBrush(fill);
+            using var path = DockDrawing.CreateRoundedRectanglePath(new Rectangle(0, 2, Width - 1, Height - 4), 6);
             e.Graphics.FillPath(brush, path);
         }
 
         if (Image is not null)
         {
             var imageSize = 20;
-            var imageX = ShowLabel ? 8 : (Width - imageSize) / 2;
+            var imageX = (Width - imageSize) / 2;
             var imageY = (Height - imageSize) / 2;
             e.Graphics.DrawImage(Image, new Rectangle(imageX, imageY, imageSize, imageSize));
-        }
-
-        if (ShowLabel)
-        {
-            using var font = new Font(Font.FontFamily, 7.5f, FontStyle.Regular);
-            var textColor = highContrast ? SystemColors.ControlText : DockPalette.TextPrimary;
-            TextRenderer.DrawText(
-                e.Graphics,
-                Item.Name,
-                font,
-                new Rectangle(32, 10, Width - 36, Height - 18),
-                textColor,
-                TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
         }
     }
 }

@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
@@ -16,9 +17,23 @@ internal sealed class DockForm : Form
 {
     // The "breadth" is the dock's thickness: its height when horizontal, its width when vertical.
     private const int DockBreadth = 54;
-    private const int MinHorizontalWidth = 154;
-    private const int MinVerticalHeight = 140;
+
+    // Minimums are kept just large enough for the (empty) dock to hold the overflow button,
+    // so the dock always hugs its content instead of leaving a gap after the last item.
+    private const int MinHorizontalWidth = 44;
+    private const int MinVerticalHeight = 44;
     private const int CornerRadius = 10;
+
+    // Spacing between horizontal shortcut tiles (kept tight).
+    private const int ItemSpacing = 2;
+
+    // The overflow button's size along the dock axis (its width when horizontal, its
+    // height when vertical). Kept small so the ellipsis carries no extra padding.
+    private const int EllipsisThickness = 16;
+
+    // Height of a tile in the vertical column. Sized close to the icon so stacked tiles
+    // sit right against each other with no gap.
+    private const int VerticalTileHeight = 38;
 
     // Sliver left on-screen when the dock auto-hides against an edge; also the notch grip.
     private const int RevealStripPx = 6;
@@ -28,8 +43,6 @@ internal sealed class DockForm : Form
     private readonly DockSettingsStore store;
     private readonly FlowLayoutPanel strip;
     private readonly DockActionButton menuButton;
-    private readonly DockSummaryPanel summaryPanel;
-    private readonly DockSeparator separator;
     private readonly Timer settingsRefreshTimer;
     private readonly Timer autoHideTimer;
     private readonly Timer slideTimer;
@@ -53,7 +66,7 @@ internal sealed class DockForm : Form
     {
         this.store = store;
         settings = store.LoadSettings();
-        state = store.LoadState(settings);
+        state = store.LoadState();
 
         snapEdge = state.SnapEdge ?? DockSnap.NoEdge;
         orientation = IsVerticalEdge(snapEdge) ? DockOrientation.Vertical : DockOrientation.Horizontal;
@@ -84,28 +97,15 @@ internal sealed class DockForm : Form
             WrapContents = false,
             Padding = Padding.Empty,
             Margin = Padding.Empty,
+
+            // The strip background is the dock's drag handle, but keep the normal pointer
+            // here rather than a move cursor.
+            Cursor = Cursors.Default,
         };
 
-        summaryPanel = new DockSummaryPanel();
-
-        // The summary panel doubles as the expand/collapse handle now that the hub button
-        // is gone. A pure click toggles; a click that moved the window (a drag) does not.
-        summaryPanel.Click += (_, _) =>
-        {
-            if (!dragMoved)
-            {
-                ToggleExpanded();
-            }
-        };
-        summaryPanel.DragEnter += OnExternalDragEnter;
-        summaryPanel.DragDrop += OnExternalDragDrop;
-
-        separator = new DockSeparator();
-
-        menuButton = new DockActionButton(DockActionKind.More);
+        menuButton = new DockActionButton();
         menuButton.Click += (_, _) => ShowDockMenu();
 
-        toolTip.SetToolTip(summaryPanel, "Click to expand or collapse, drag to move, or drop shortcuts here");
         toolTip.SetToolTip(menuButton, "More options");
 
         Controls.Add(strip);
@@ -116,7 +116,6 @@ internal sealed class DockForm : Form
 
         AttachWindowDrag(this);
         AttachWindowDrag(strip);
-        AttachWindowDrag(summaryPanel);
 
         KeyDown += OnDockKeyDown;
         DragEnter += OnExternalDragEnter;
@@ -224,38 +223,15 @@ internal sealed class DockForm : Form
         strip.SuspendLayout();
         strip.Controls.Clear();
 
-        var vertical = orientation == DockOrientation.Vertical;
-        var showLabels = !vertical && settings.ShowLabels;
-        var verticalSummaryWidth = DockBreadth - Padding.Horizontal;
-        var count = state.Shortcuts.Count;
-
-        if (state.IsExpanded)
-        {
-            if (count == 0)
-            {
-                summaryPanel.Width = vertical ? verticalSummaryWidth : 72;
-                summaryPanel.PrimaryText = vertical ? "Drop" : "Drop links";
-                summaryPanel.SecondaryText = vertical ? "files" : "or files";
-                strip.Controls.Add(summaryPanel);
-            }
-            else
-            {
-                for (var index = 0; index < count; index++)
-                {
-                    strip.Controls.Add(CreateTile(state.Shortcuts[index], index, showLabels));
-                }
-            }
-        }
-        else
-        {
-            summaryPanel.Width = vertical ? verticalSummaryWidth : 72;
-            summaryPanel.PrimaryText = vertical ? "Dock" : "Shortcuts";
-            summaryPanel.SecondaryText = vertical ? "tap" : "Tap to expand";
-            strip.Controls.Add(summaryPanel);
-        }
-
-        strip.Controls.Add(separator);
+        // The overflow (...) button leads the strip: left edge when horizontal, top edge
+        // when vertical. Shortcuts follow after it.
         strip.Controls.Add(menuButton);
+
+        var count = state.Shortcuts.Count;
+        for (var index = 0; index < count; index++)
+        {
+            strip.Controls.Add(CreateTile(state.Shortcuts[index], index));
+        }
 
         ApplyOrientationLayout();
         strip.ResumeLayout();
@@ -272,56 +248,49 @@ internal sealed class DockForm : Form
     private void ApplyOrientationLayout()
     {
         var innerBreadth = DockBreadth - Padding.Horizontal;
+        var lastIndex = strip.Controls.Count - 1;
 
         menuButton.DockOrientation = orientation;
 
         if (orientation == DockOrientation.Vertical)
         {
             strip.FlowDirection = FlowDirection.TopDown;
-            separator.Orientation = DockOrientation.Vertical;
+
+            // Thin leading ellipsis and short tiles, with no margin between any items, so
+            // the column stacks tightly with no gaps.
+            menuButton.Size = new Size(38, EllipsisThickness);
 
             foreach (Control control in strip.Controls)
             {
+                if (control is ShortcutTile)
+                {
+                    control.Size = new Size(38, VerticalTileHeight);
+                }
+
                 var side = Math.Max(0, (innerBreadth - control.Width) / 2);
-                control.Margin = new Padding(side, 0, side, 6);
+                control.Margin = new Padding(side, 0, side, 0);
             }
         }
         else
         {
             strip.FlowDirection = FlowDirection.LeftToRight;
-            separator.Orientation = DockOrientation.Horizontal;
+            menuButton.Size = new Size(EllipsisThickness, 40);
 
-            foreach (Control control in strip.Controls)
+            for (var i = 0; i < strip.Controls.Count; i++)
             {
-                control.Margin = DefaultHorizontalMargin(control);
+                var control = strip.Controls[i];
+
+                // The ellipsis sits flush against the first item; tiles keep a small gap,
+                // and the trailing item hugs the edge so the dock just wraps its content.
+                var right = i == lastIndex || control is DockActionButton ? 0 : ItemSpacing;
+                control.Margin = new Padding(0, 0, right, 0);
             }
         }
     }
 
-    private Padding DefaultHorizontalMargin(Control control)
+    private ShortcutTile CreateTile(ShortcutItem item, int index)
     {
-        if (control == separator)
-        {
-            return new Padding(0, 4, 4, 4);
-        }
-
-        if (control == menuButton)
-        {
-            return new Padding(1, 0, 1, 0);
-        }
-
-        if (control is ShortcutTile)
-        {
-            return new Padding(0, 0, 6, 0);
-        }
-
-        // Summary panel.
-        return new Padding(0, 0, 8, 0);
-    }
-
-    private ShortcutTile CreateTile(ShortcutItem item, int index, bool showLabel)
-    {
-        var tile = new ShortcutTile(item, index, showLabel)
+        var tile = new ShortcutTile(item, index)
         {
             ContextMenuStrip = CreateShortcutMenu(index),
         };
@@ -360,11 +329,11 @@ internal sealed class DockForm : Form
     private ContextMenuStrip CreateDockMenu()
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add("Add shortcut...", null, (_, _) => AddCustomShortcut());
-        menu.Items.Add(state.IsExpanded ? "Collapse" : "Expand", null, (_, _) => ToggleExpanded());
-        menu.Items.Add(settings.ShowLabels ? "Hide labels" : "Show labels", null, (_, _) => ToggleLabels());
+        menu.Items.Add("Add new", null, (_, _) => AddCustomShortcut());
         menu.Items.Add(settings.AutoHide ? "Disable auto-hide" : "Enable auto-hide", null, (_, _) => ToggleAutoHide());
         menu.Items.Add("Reset position", null, (_, _) => ResetPosition());
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add("Settings", null, (_, _) => OpenSettings());
         DockMenuRenderer.Apply(menu);
         return menu;
     }
@@ -373,6 +342,7 @@ internal sealed class DockForm : Form
     {
         var menu = new ContextMenuStrip();
         menu.Items.Add("Open", null, (_, _) => ShortcutResolver.Launch(state.Shortcuts[index]));
+        menu.Items.Add("Edit...", null, (_, _) => EditShortcut(index));
         menu.Items.Add("Rename...", null, (_, _) => RenameShortcut(index));
         menu.Items.Add("Move left", null, (_, _) => MoveShortcut(index, -1));
         menu.Items.Add("Move right", null, (_, _) => MoveShortcut(index, 1));
@@ -385,6 +355,30 @@ internal sealed class DockForm : Form
     {
         ContextMenuStrip = CreateDockMenu();
         ContextMenuStrip.Show(menuButton, new Point(0, menuButton.Height + 2));
+    }
+
+    // Opens the PowerToys Settings app. The helper ships next to PowerToys.exe, with the
+    // Settings app in the WinUI3Apps subfolder (its location both when installed and in the
+    // repo's x64\Debug output).
+    private void OpenSettings()
+    {
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            var settingsExe = Path.Combine(baseDir, "WinUI3Apps", "PowerToys.Settings.exe");
+            if (!File.Exists(settingsExe))
+            {
+                settingsExe = Path.Combine(baseDir, "PowerToys.Settings.exe");
+            }
+
+            if (File.Exists(settingsExe))
+            {
+                Process.Start(new ProcessStartInfo { FileName = settingsExe, UseShellExecute = true });
+            }
+        }
+        catch
+        {
+        }
     }
 
     private void ResizeToContent()
@@ -434,11 +428,12 @@ internal sealed class DockForm : Form
             return;
         }
 
-        // Theme-aware chrome + rounded corners + subtle translucency for a glassmorphic
-        // surface that tracks the Windows light/dark theme.
+        // Clean, theme-aligned surface: a solid dock that is dark in dark mode and light
+        // in light mode, with Windows 11 immersive chrome and rounded corners. No
+        // translucency, so the dock never bleeds the desktop wallpaper through and stays
+        // visually calm.
         DockNativeMethods.SetImmersiveDarkMode(Handle, !DockPalette.IsLight);
         DockNativeMethods.SetRoundedCorners(Handle);
-        Opacity = DockPalette.IsLight ? 0.97 : 0.94;
     }
 
     private void UpdateWindowRegion()
@@ -465,32 +460,11 @@ internal sealed class DockForm : Form
 
     private void OnDockKeyDown(object? sender, KeyEventArgs args)
     {
-        if (args.KeyCode == Keys.Escape && state.IsExpanded)
-        {
-            ToggleExpanded();
-            args.Handled = true;
-        }
-        else if (args.KeyCode == Keys.Insert || (args.Control && args.KeyCode == Keys.N))
+        if (args.KeyCode == Keys.Insert || (args.Control && args.KeyCode == Keys.N))
         {
             AddCustomShortcut();
             args.Handled = true;
         }
-    }
-
-    private void ToggleExpanded()
-    {
-        state.IsExpanded = !state.IsExpanded;
-        BuildStrip();
-        ReseatAgainstEdge();
-        MarkInteraction();
-    }
-
-    private void ToggleLabels()
-    {
-        settings.ShowLabels = !settings.ShowLabels;
-        store.SaveSettings(settings);
-        BuildStrip();
-        ReseatAgainstEdge();
     }
 
     private void ToggleAutoHide()
@@ -511,13 +485,41 @@ internal sealed class DockForm : Form
         modalOpen = true;
         try
         {
-            var target = InputDialog.ShowDialog(this, "Add shortcut", "File, app, URL, shell target, or command", string.Empty);
+            var target = InputDialog.ShowDialog(this, "Add new", "File, app, URL, shell target, or command", string.Empty);
             if (target is null)
             {
                 return;
             }
 
             AddShortcut(ShortcutResolver.FromText(target));
+        }
+        finally
+        {
+            modalOpen = false;
+            MarkInteraction();
+        }
+    }
+
+    private void EditShortcut(int index)
+    {
+        modalOpen = true;
+        try
+        {
+            var current = state.Shortcuts[index];
+            var target = InputDialog.ShowDialog(this, "Edit shortcut", "File, app, URL, shell target, or command", current.Target);
+            if (target is null)
+            {
+                return;
+            }
+
+            // Re-resolve from the new target so the kind, working directory, and icon update.
+            // The display name is left as-is (use Rename to change that).
+            var resolved = ShortcutResolver.FromText(target);
+            current.Target = resolved.Target;
+            current.Kind = resolved.Kind;
+            current.WorkingDirectory = resolved.WorkingDirectory;
+            BuildStrip();
+            ReseatAgainstEdge();
         }
         finally
         {
@@ -603,7 +605,6 @@ internal sealed class DockForm : Form
         }
 
         state.Shortcuts.Add(item);
-        state.IsExpanded = true;
         BuildStrip();
         ReseatAgainstEdge();
     }
@@ -782,6 +783,7 @@ internal sealed class DockForm : Form
 
         var area = Screen.PrimaryScreen!.WorkingArea;
         isHidden = false;
+        TopMost = true;
         Location = DockSnap.DefaultLocation(Size, area);
         SnapToNearestEdge();
     }
@@ -879,6 +881,16 @@ internal sealed class DockForm : Form
         }
 
         isHidden = true;
+
+        // When hiding against the bottom edge, the dock body slides down into the taskbar's
+        // band. Drop out of the always-on-top z-order so the taskbar (itself a topmost
+        // window) renders in front of it — the dock tucks behind the taskbar instead of
+        // covering it, leaving only the reveal notch peeking above the taskbar.
+        if (snapEdge == DockSnap.BottomEdge)
+        {
+            TopMost = false;
+        }
+
         Invalidate();
         StartSlide(HiddenLocation());
     }
@@ -886,6 +898,7 @@ internal sealed class DockForm : Form
     private void Reveal()
     {
         isHidden = false;
+        TopMost = true;
         Invalidate();
         StartSlide(shownBounds.Location);
         MarkInteraction();

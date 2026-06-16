@@ -6,10 +6,6 @@ namespace Microsoft.PowerToys.FloatingDock;
 
 internal sealed class DockSettings
 {
-    public bool StartExpanded { get; set; } = true;
-
-    public bool ShowLabels { get; set; }
-
     public int SnapThreshold { get; set; } = 32;
 
     // Slide the dock off the snapped edge when it is idle, leaving only a reveal notch.

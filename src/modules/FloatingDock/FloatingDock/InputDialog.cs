@@ -11,6 +11,7 @@ namespace Microsoft.PowerToys.FloatingDock;
 internal sealed class InputDialog : Form
 {
     private readonly TextBox input;
+    private Rectangle? dockBounds;
 
     public InputDialog(string title, string label, string initialValue)
     {
@@ -18,7 +19,7 @@ internal sealed class InputDialog : Form
 
         Text = title;
         FormBorderStyle = FormBorderStyle.FixedDialog;
-        StartPosition = FormStartPosition.CenterParent;
+        StartPosition = FormStartPosition.Manual;
         ClientSize = new Size(420, 126);
         MaximizeBox = false;
         MinimizeBox = false;
@@ -59,10 +60,46 @@ internal sealed class InputDialog : Form
 
     public static string? ShowDialog(IWin32Window owner, string title, string label, string initialValue)
     {
-        using var dialog = new InputDialog(title, label, initialValue);
+        using var dialog = new InputDialog(title, label, initialValue)
+        {
+            dockBounds = (owner as Control)?.Bounds,
+        };
         return dialog.ShowDialog(owner) == DialogResult.OK && !string.IsNullOrWhiteSpace(dialog.Value)
             ? dialog.Value
             : null;
+    }
+
+    protected override void OnLoad(EventArgs e)
+    {
+        base.OnLoad(e);
+        PositionRelativeToDock();
+    }
+
+    private void PositionRelativeToDock()
+    {
+        if (dockBounds is not Rectangle dock)
+        {
+            // No dock info: center on the screen under the cursor.
+            var fallback = Screen.FromPoint(Cursor.Position).WorkingArea;
+            Location = new Point(fallback.Left + ((fallback.Width - Width) / 2), fallback.Top + ((fallback.Height - Height) / 2));
+            return;
+        }
+
+        var area = Screen.FromRectangle(dock).WorkingArea;
+        const int gap = 8;
+
+        // Centered horizontally on the dock, clamped to the screen.
+        var x = Math.Max(area.Left, Math.Min(dock.Left + ((dock.Width - Width) / 2), area.Right - Width));
+
+        // Below the dock by default; above it when the dock sits past three-quarters of the
+        // screen height (or when there is no room below), so the dialog stays on-screen.
+        var threeQuarterLine = area.Top + (area.Height * 3 / 4);
+        var below = dock.Bottom + gap;
+        var placeAbove = dock.Top >= threeQuarterLine || below + Height > area.Bottom;
+        var y = placeAbove ? dock.Top - gap - Height : below;
+        y = Math.Max(area.Top, Math.Min(y, area.Bottom - Height));
+
+        Location = new Point(x, y);
     }
 
     protected override void OnHandleCreated(EventArgs e)
