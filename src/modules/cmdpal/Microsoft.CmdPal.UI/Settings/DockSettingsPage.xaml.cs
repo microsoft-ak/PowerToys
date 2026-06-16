@@ -43,10 +43,15 @@ public sealed partial class DockSettingsPage : Page
     private void InitializeSettings()
     {
         // Initialize UI controls to match current settings
+        DockPlacementComboBox.SelectedIndex = SelectedPlacementIndex;
         DockPositionComboBox.SelectedIndex = SelectedSideIndex;
         DockSizeComboBox.SelectedIndex = SelectedDockSizeIndex;
+        DockLengthModeComboBox.SelectedIndex = SelectedLengthModeIndex;
+        DockAlignmentComboBox.SelectedIndex = SelectedAlignmentIndex;
         BackdropComboBox.SelectedIndex = SelectedBackdropIndex;
         UpdateDockSizeCardVisibility();
+        UpdateDockLengthCardsVisibility();
+        UpdatePlacementCardsVisibility();
     }
 
     private async void PickBackgroundImage_Click(object sender, RoutedEventArgs e)
@@ -125,6 +130,32 @@ public sealed partial class DockSettingsPage : Page
         set => ViewModel.Dock_Backdrop = SelectedIndexToBackdrop(value);
     }
 
+    public int SelectedPlacementIndex
+    {
+        get => PlacementToSelectedIndex(ViewModel.Dock_Placement);
+        set
+        {
+            ViewModel.Dock_Placement = SelectedIndexToPlacement(value);
+            UpdatePlacementCardsVisibility();
+        }
+    }
+
+    public int SelectedLengthModeIndex
+    {
+        get => LengthModeToSelectedIndex(ViewModel.Dock_LengthMode);
+        set
+        {
+            ViewModel.Dock_LengthMode = SelectedIndexToLengthMode(value);
+            UpdateDockLengthCardsVisibility();
+        }
+    }
+
+    public int SelectedAlignmentIndex
+    {
+        get => AlignmentToSelectedIndex(ViewModel.Dock_Alignment);
+        set => ViewModel.Dock_Alignment = SelectedIndexToAlignment(value);
+    }
+
     public bool ShowLabels
     {
         get => ViewModel.Dock_ShowLabels;
@@ -164,6 +195,50 @@ public sealed partial class DockSettingsPage : Page
         _ => DockSide.Top,
     };
 
+    private static int PlacementToSelectedIndex(DockPlacement placement) => placement switch
+    {
+        DockPlacement.Edge => 0,
+        DockPlacement.Floating => 1,
+        _ => 0,
+    };
+
+    private static DockPlacement SelectedIndexToPlacement(int index) => index switch
+    {
+        0 => DockPlacement.Edge,
+        1 => DockPlacement.Floating,
+        _ => DockPlacement.Edge,
+    };
+
+    private static int LengthModeToSelectedIndex(DockLengthMode mode) => mode switch
+    {
+        DockLengthMode.Full => 0,
+        DockLengthMode.FitToContent => 1,
+        _ => 0,
+    };
+
+    private static DockLengthMode SelectedIndexToLengthMode(int index) => index switch
+    {
+        0 => DockLengthMode.Full,
+        1 => DockLengthMode.FitToContent,
+        _ => DockLengthMode.Full,
+    };
+
+    private static int AlignmentToSelectedIndex(DockAlignment alignment) => alignment switch
+    {
+        DockAlignment.Start => 0,
+        DockAlignment.Center => 1,
+        DockAlignment.End => 2,
+        _ => 1,
+    };
+
+    private static DockAlignment SelectedIndexToAlignment(int index) => index switch
+    {
+        0 => DockAlignment.Start,
+        1 => DockAlignment.Center,
+        2 => DockAlignment.End,
+        _ => DockAlignment.Center,
+    };
+
     private static int BackdropToSelectedIndex(DockBackdrop backdrop) => backdrop switch
     {
         DockBackdrop.Transparent => 0,
@@ -180,9 +255,42 @@ public sealed partial class DockSettingsPage : Page
 
     private void UpdateDockSizeCardVisibility()
     {
+        // Compact/default size is an edge-placement, Top/Bottom-only setting.
+        var isEdge = ViewModel.Dock_Placement == DockPlacement.Edge;
         var side = ViewModel.Dock_Side;
         var isTopOrBottom = side == DockSide.Top || side == DockSide.Bottom;
-        DockSizeSettingsCard.Visibility = isTopOrBottom ? Visibility.Visible : Visibility.Collapsed;
+        DockSizeSettingsCard.Visibility = (isEdge && isTopOrBottom) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateDockLengthCardsVisibility()
+    {
+        // Length/alignment/reset only apply to edge placement in fit-to-content mode.
+        var isEdge = ViewModel.Dock_Placement == DockPlacement.Edge;
+        var isFitToContent = isEdge && ViewModel.Dock_LengthMode == DockLengthMode.FitToContent;
+        var visibility = isFitToContent ? Visibility.Visible : Visibility.Collapsed;
+        DockAlignmentSettingsCard.Visibility = visibility;
+        DockResetLengthSettingsCard.Visibility = visibility;
+    }
+
+    private void UpdatePlacementCardsVisibility()
+    {
+        var isFloating = ViewModel.Dock_Placement == DockPlacement.Floating;
+
+        // Auto-hide is floating-only; the edge-anchored sizing controls are
+        // hidden when floating (the floating dock always fits its content).
+        DockAutoHideSettingsCard.Visibility = isFloating ? Visibility.Visible : Visibility.Collapsed;
+
+        var edgeOnly = isFloating ? Visibility.Collapsed : Visibility.Visible;
+        DockLengthSettingsCard.Visibility = edgeOnly;
+
+        UpdateDockSizeCardVisibility();
+        UpdateDockLengthCardsVisibility();
+    }
+
+    private void ResetDockLength_Click(object sender, RoutedEventArgs e)
+    {
+        // Return the fit-to-content dock to automatic sizing.
+        ViewModel.Dock_CustomLength = 0;
     }
 
     private List<TopLevelViewModel> GetAllBands()

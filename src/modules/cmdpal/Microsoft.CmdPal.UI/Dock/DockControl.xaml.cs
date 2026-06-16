@@ -66,6 +66,52 @@ public sealed partial class DockControl : UserControl, IRecipient<CloseContextMe
         set => SetValue(DockSizeProperty, value);
     }
 
+    public static readonly DependencyProperty IsFloatingProperty =
+        DependencyProperty.Register(nameof(IsFloating), typeof(bool), typeof(DockControl), new PropertyMetadata(false));
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the dock is in fit-to-content
+    /// (compact toolbar) mode rather than spanning the full screen edge.
+    /// </summary>
+    public bool IsFloating
+    {
+        get => (bool)GetValue(IsFloatingProperty);
+        set => SetValue(IsFloatingProperty, value);
+    }
+
+    /// <summary>
+    /// Raised when the user starts dragging the resize grip (fit-to-content mode).
+    /// </summary>
+    internal event EventHandler? ResizeDragStarted;
+
+    /// <summary>
+    /// Raised on every pointer move while the resize grip is being dragged.
+    /// The owning window reads the cursor position itself, so no delta payload.
+    /// </summary>
+    internal event EventHandler? ResizeDragDelta;
+
+    /// <summary>
+    /// Raised when a resize-grip drag finishes (pointer released or capture lost).
+    /// </summary>
+    internal event EventHandler? ResizeDragCompleted;
+
+    /// <summary>
+    /// Raised when the user double-taps the resize grip to return to automatic sizing.
+    /// </summary>
+    internal event EventHandler? ResizeDragReset;
+
+    /// <summary>
+    /// Raised when the dock content's natural size may have changed (bands
+    /// resized, edit mode toggled), so a fit-to-content window can re-fit.
+    /// </summary>
+    internal event EventHandler? ContentLayoutChanged;
+
+    /// <summary>
+    /// Raised when the user presses the floating dock's grab handle to move the
+    /// window. The owning window hands the drag to the system move loop.
+    /// </summary>
+    internal event EventHandler? MoveDragRequested;
+
     public static readonly DependencyProperty IsEditModeProperty =
         DependencyProperty.Register(nameof(IsEditMode), typeof(bool), typeof(DockControl), new PropertyMetadata(false, OnIsEditModeChanged));
 
@@ -208,6 +254,10 @@ public sealed partial class DockControl : UserControl, IRecipient<CloseContextMe
         }
 
         UpdateEditModeTeachingTip();
+
+        // Edit mode shows/hides the add-band buttons, changing the dock's
+        // natural length — let a fit-to-content window re-fit.
+        ContentLayoutChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void UpdateEditModeTeachingTip()
@@ -286,10 +336,110 @@ public sealed partial class DockControl : UserControl, IRecipient<CloseContextMe
 
         ItemsOrientation = isHorizontal ? Orientation.Horizontal : Orientation.Vertical;
 
+        var isFloatingPlacement = settings.Placement == DockPlacement.Floating;
+        var isEdgeFitToContent = settings.Placement == DockPlacement.Edge && settings.LengthMode == DockLengthMode.FitToContent;
+
+        // Rounded corners + full border for any compact/toolbar form.
+        IsFloating = isFloatingPlacement || isEdgeFitToContent;
+
+        UpdateResizeGrip(settings, isHorizontal, isEdgeFitToContent);
+        UpdateFloatingDragHandle(isFloatingPlacement, isHorizontal);
+
         if (settings.Backdrop == DockBackdrop.Transparent)
         {
             RootGrid.BorderBrush = new SolidColorBrush(Colors.Transparent);
         }
+    }
+
+    /// <summary>
+    /// Shows the grab handle for floating placement (on the leading edge of the
+    /// dock, oriented to match the layout) and hides it otherwise.
+    /// </summary>
+    private void UpdateFloatingDragHandle(bool isFloatingPlacement, bool isHorizontal)
+    {
+        if (!isFloatingPlacement)
+        {
+            FloatingDragHandle.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        FloatingDragHandle.Visibility = Visibility.Visible;
+
+        if (isHorizontal)
+        {
+            FloatingDragHandle.Width = 14;
+            FloatingDragHandle.Height = double.NaN;
+            FloatingDragHandle.HorizontalAlignment = HorizontalAlignment.Left;
+            FloatingDragHandle.VerticalAlignment = VerticalAlignment.Stretch;
+            FloatingDragHandleGlyph.Glyph = "\uE784"; // GripperBarVertical
+        }
+        else
+        {
+            FloatingDragHandle.Width = double.NaN;
+            FloatingDragHandle.Height = 14;
+            FloatingDragHandle.HorizontalAlignment = HorizontalAlignment.Stretch;
+            FloatingDragHandle.VerticalAlignment = VerticalAlignment.Top;
+            FloatingDragHandleGlyph.Glyph = "\uE76F"; // GripperBarHorizontal
+        }
+    }
+
+    /// <summary>
+    /// Places the resize grip on the correct edge for the current orientation and
+    /// alignment: the grip sits on the dock's "free" end (the edge that moves when
+    /// the dock grows), which for End alignment is the start edge instead.
+    /// </summary>
+    private void UpdateResizeGrip(DockSettings settings, bool isHorizontal, bool isEdgeFitToContent)
+    {
+        // The drag-to-resize grip is only for the edge-anchored fit-to-content
+        // toolbar. Floating docks resize automatically to their content.
+        if (!isEdgeFitToContent)
+        {
+            ResizeGrip.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        ResizeGrip.Visibility = Visibility.Visible;
+
+        var gripAtStart = settings.Alignment == DockAlignment.End;
+        if (isHorizontal)
+        {
+            ResizeGrip.Width = 12;
+            ResizeGrip.Height = double.NaN;
+            ResizeGrip.HorizontalAlignment = gripAtStart ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+            ResizeGrip.VerticalAlignment = VerticalAlignment.Stretch;
+            ResizeGripHandle.Width = 3;
+            ResizeGripHandle.Height = 20;
+        }
+        else
+        {
+            ResizeGrip.Width = double.NaN;
+            ResizeGrip.Height = 12;
+            ResizeGrip.HorizontalAlignment = HorizontalAlignment.Stretch;
+            ResizeGrip.VerticalAlignment = gripAtStart ? VerticalAlignment.Top : VerticalAlignment.Bottom;
+            ResizeGripHandle.Width = 20;
+            ResizeGripHandle.Height = 3;
+        }
+    }
+
+    /// <summary>
+    /// Measures the natural length (in DIPs) of the dock content along the dock
+    /// axis, unconstrained by the current window size. Used by the owning window
+    /// in fit-to-content mode to size itself to the content.
+    /// </summary>
+    internal double MeasureDesiredLength(bool isHorizontal, double thicknessDips)
+    {
+        var available = isHorizontal
+            ? new global::Windows.Foundation.Size(double.PositiveInfinity, thicknessDips)
+            : new global::Windows.Foundation.Size(thicknessDips, double.PositiveInfinity);
+
+        RootGrid.Measure(available);
+        var desired = isHorizontal ? RootGrid.DesiredSize.Width : RootGrid.DesiredSize.Height;
+
+        // Re-run a normal measure pass so the temporary infinite constraint
+        // doesn't leave the tree laid out for the wrong size.
+        RootGrid.InvalidateMeasure();
+
+        return desired;
     }
 
     private void BandItem_Tapped(object sender, Microsoft.UI.Xaml.Input.TappedRoutedEventArgs e)
@@ -902,6 +1052,201 @@ public sealed partial class DockControl : UserControl, IRecipient<CloseContextMe
         var commandId = Ext.Bookmarks.Helpers.CommandIds.GetLaunchBookmarkItemId(bookmark.Id);
         Logger.LogDebug($"[DockDrop] Pinning dropped item '{name}' as bookmark id={bookmark.Id} (commandId='{commandId}')");
         WeakReferenceMessenger.Default.Send(new PinToDockMessage("Bookmarks", commandId, true, WithReload: false));
+    }
+
+    private void BandListView_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // The band lists report their natural content size (they sit inside
+        // scrollers), so a change here means the dock's fit-to-content length
+        // is stale. No-op for full-edge docks — the window ignores the event.
+        ContentLayoutChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private bool _resizeGripDragActive;
+
+    private void ResizeGrip_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (sender is FrameworkElement grip && grip.CapturePointer(e.Pointer))
+        {
+            _resizeGripDragActive = true;
+            ResizeDragStarted?.Invoke(this, EventArgs.Empty);
+            e.Handled = true;
+        }
+    }
+
+    private void ResizeGrip_PointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_resizeGripDragActive)
+        {
+            ResizeDragDelta?.Invoke(this, EventArgs.Empty);
+            e.Handled = true;
+        }
+    }
+
+    private void ResizeGrip_PointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (_resizeGripDragActive && sender is FrameworkElement grip)
+        {
+            grip.ReleasePointerCapture(e.Pointer);
+            CompleteResizeGripDrag();
+            e.Handled = true;
+        }
+    }
+
+    private void ResizeGrip_PointerCaptureLost(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        CompleteResizeGripDrag();
+    }
+
+    private void CompleteResizeGripDrag()
+    {
+        if (_resizeGripDragActive)
+        {
+            _resizeGripDragActive = false;
+            ResizeDragCompleted?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void ResizeGrip_DoubleTapped(object sender, Microsoft.UI.Xaml.Input.DoubleTappedRoutedEventArgs e)
+    {
+        ResizeDragReset?.Invoke(this, EventArgs.Empty);
+        e.Handled = true;
+    }
+
+    private void ResizeGrip_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        var shape = ItemsOrientation == Orientation.Horizontal
+            ? Microsoft.UI.Input.InputSystemCursorShape.SizeWestEast
+            : Microsoft.UI.Input.InputSystemCursorShape.SizeNorthSouth;
+        ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(shape);
+    }
+
+    private void ResizeGrip_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        if (!_resizeGripDragActive)
+        {
+            ProtectedCursor = null;
+        }
+    }
+
+    private void FloatingDragHandle_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        // Only start a move on primary (left) button presses.
+        var point = e.GetCurrentPoint(this);
+        if (point.Properties.IsLeftButtonPressed)
+        {
+            MoveDragRequested?.Invoke(this, EventArgs.Empty);
+            e.Handled = true;
+        }
+    }
+
+    private void FloatingDragHandle_PointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        ProtectedCursor = Microsoft.UI.Input.InputSystemCursor.Create(Microsoft.UI.Input.InputSystemCursorShape.SizeAll);
+    }
+
+    private void FloatingDragHandle_PointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    {
+        ProtectedCursor = null;
+    }
+
+    private void ShortcutTargetTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        AddShortcutButton.IsEnabled = !string.IsNullOrWhiteSpace(ShortcutTargetTextBox.Text);
+    }
+
+    private async void BrowseShortcutButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (XamlRoot?.ContentIslandEnvironment is null)
+            {
+                return;
+            }
+
+            var windowId = XamlRoot.ContentIslandEnvironment.AppWindowId;
+            var picker = new Microsoft.Windows.Storage.Pickers.FileOpenPicker(windowId)
+            {
+                SuggestedStartLocation = Microsoft.Windows.Storage.Pickers.PickerLocationId.Desktop,
+            };
+            picker.FileTypeFilter!.Add("*");
+
+            var file = await picker.PickSingleFileAsync()!;
+            if (file is not null && !string.IsNullOrEmpty(file.Path))
+            {
+                ShortcutTargetTextBox.Text = file.Path;
+                if (string.IsNullOrWhiteSpace(ShortcutNameTextBox.Text))
+                {
+                    ShortcutNameTextBox.Text = Path.GetFileNameWithoutExtension(file.Path);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("Failed to pick a file for a dock shortcut", ex);
+        }
+    }
+
+    private async void AddShortcutButton_Click(object sender, RoutedEventArgs e)
+    {
+        var target = ShortcutTargetTextBox.Text?.Trim();
+        if (string.IsNullOrEmpty(target))
+        {
+            return;
+        }
+
+        var name = ShortcutNameTextBox.Text?.Trim();
+        if (string.IsNullOrEmpty(name))
+        {
+            name = DeriveShortcutName(target);
+        }
+
+        var bookmarksManager = App.Current.Services.GetService<IBookmarksManager>();
+        if (bookmarksManager is null)
+        {
+            Logger.LogWarning("IBookmarksManager service is not registered; cannot add dock shortcut");
+            return;
+        }
+
+        var targetSide = _addBandTargetSide;
+        var bookmark = bookmarksManager.Add(name, target);
+
+        // Same command ID the bookmark gets in the top-level list, so the new
+        // band resolves cleanly. Route it through the dock's edit session (the
+        // add-shortcut form is only shown in edit mode) so it gets its icon and
+        // title initialized like any other band and is saved on "Done". Pinning
+        // straight to settings here would be dropped, because the ViewModel
+        // ignores settings changes while editing.
+        var commandId = Ext.Bookmarks.Helpers.CommandIds.GetLaunchBookmarkItemId(bookmark.Id);
+
+        ShortcutNameTextBox.Text = string.Empty;
+        ShortcutTargetTextBox.Text = string.Empty;
+        AddBandFlyout.Hide();
+
+        await ViewModel.AddNewBandByCommandIdAsync(commandId, targetSide);
+    }
+
+    private static string DeriveShortcutName(string target)
+    {
+        if (Uri.TryCreate(target, UriKind.Absolute, out var uri) && !uri.IsFile && !string.IsNullOrEmpty(uri.Host))
+        {
+            return uri.Host;
+        }
+
+        try
+        {
+            var fileName = Path.GetFileNameWithoutExtension(target);
+            if (!string.IsNullOrEmpty(fileName))
+            {
+                return fileName;
+            }
+        }
+        catch (ArgumentException)
+        {
+            // Not a valid path - fall through to using the raw target as the name.
+        }
+
+        return target;
     }
 
     public void Receive(CrossMonitorBandDropMessage message)

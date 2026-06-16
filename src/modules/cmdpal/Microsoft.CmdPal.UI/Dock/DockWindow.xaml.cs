@@ -22,6 +22,7 @@ using Windows.Foundation;
 using Windows.Win32;
 using Windows.Win32.Foundation;
 using Windows.Win32.Graphics.Dwm;
+using Windows.Win32.Graphics.Gdi;
 using Windows.Win32.UI.Accessibility;
 using Windows.Win32.UI.Shell;
 using Windows.Win32.UI.WindowsAndMessaging;
@@ -68,6 +69,48 @@ public sealed partial class DockWindow : WindowEx,
     private DockSize _lastSize;
     private bool _isDisposed;
 
+    // Resize-drag state for fit-to-content mode. Lengths are in physical pixels.
+    private System.Drawing.Point _resizeDragStartCursor;
+    private double _resizeDragStartLengthPx;
+    private bool _resizeDragActive;
+
+    /// <summary>
+    /// Minimum length of the dock (in DIPs) when it doesn't span the full screen edge.
+    /// </summary>
+    private const double MinFloatingLengthDips = 140;
+
+    /// <summary>
+    /// Extra room (in DIPs) added to the measured content length in fit-to-content
+    /// mode so the resize grip and edge margins don't overlap the content.
+    /// </summary>
+    private const double FloatingContentPaddingDips = 24;
+
+    /// <summary>
+    /// How close (in DIPs) the floating dock's edge must be to a screen edge to snap to it.
+    /// </summary>
+    private const double SnapThresholdDips = 28;
+
+    /// <summary>
+    /// Thickness (in DIPs) of the on-screen strip left visible when a snapped floating
+    /// dock is auto-hidden.
+    /// </summary>
+    private const double AutoHideRevealSliverDips = 4;
+
+    /// <summary>
+    /// How close (in DIPs) the pointer must come to the hidden strip to reveal the dock.
+    /// </summary>
+    private const double AutoHideRevealZoneDips = 6;
+
+    private DispatcherQueueTimer? _autoHideTimer;
+    private bool _autoHideHidden;
+
+    /// <summary>
+    /// The physical-pixel rectangle a snapped floating dock occupies when fully shown.
+    /// Cached by <see cref="PositionFloatingDock"/> so the auto-hide poll doesn't re-measure
+    /// content on every tick.
+    /// </summary>
+    private RECT _floatingShownRect;
+
     /// <summary>
     /// The monitor this dock window is displayed on. Null means primary monitor (legacy behavior).
     /// </summary>
@@ -82,6 +125,27 @@ public sealed partial class DockWindow : WindowEx,
     /// Gets the effective dock side for this window, respecting per-monitor overrides.
     /// </summary>
     private DockSide EffectiveSide => _sideOverride ?? _settings.Side;
+
+    /// <summary>
+    /// Gets a value indicating whether the dock is a free-floating, draggable toolbar
+    /// (not anchored to a screen edge as an app bar).
+    /// </summary>
+    private bool IsFloatingPlacement => _settings.Placement == DockPlacement.Floating;
+
+    /// <summary>
+    /// Gets a value indicating whether the dock is an edge-anchored compact toolbar that
+    /// fits its content (and therefore isn't registered as a space-reserving app bar).
+    /// </summary>
+    private bool IsEdgeFitToContent => _settings.Placement == DockPlacement.Edge && _settings.LengthMode == DockLengthMode.FitToContent;
+
+    /// <summary>
+    /// Gets the dock side the inner <see cref="DockControl"/> should lay out for: the snapped
+    /// edge when floating-and-snapped, horizontal (Top) when floating-and-free, otherwise the
+    /// edge-placement side.
+    /// </summary>
+    private DockSide ControlSide => IsFloatingPlacement
+        ? (_settings.FloatingSnapped ? _settings.Side : DockSide.Top)
+        : EffectiveSide;
 
     // Store the original WndProc
     private WNDPROC? _originalWndProc;
@@ -117,6 +181,12 @@ public sealed partial class DockWindow : WindowEx,
         InitializeBackdropSupport();
         _windowViewModel = new DockWindowViewModel(_themeService);
         _dock = new DockControl(viewModel);
+        _dock.ResizeDragStarted += Dock_ResizeDragStarted;
+        _dock.ResizeDragDelta += Dock_ResizeDragDelta;
+        _dock.ResizeDragCompleted += Dock_ResizeDragCompleted;
+        _dock.ResizeDragReset += Dock_ResizeDragReset;
+        _dock.ContentLayoutChanged += Dock_ContentLayoutChanged;
+        _dock.MoveDragRequested += Dock_MoveDragRequested;
 
         InitializeComponent();
         Root.Children.Add(_dock);
@@ -198,8 +268,12 @@ public sealed partial class DockWindow : WindowEx,
         HwndExtensions.ToggleWindowStyle(_hwnd, false, WindowStyle.TiledWindow);
         unsafe
         {
-            BOOL value = false;
-            PInvoke.DwmSetWindowAttribute(_hwnd, DWMWINDOWATTRIBUTE.DWMWA_WINDOW_CORNER_PREFERENCE, &value, (uint)sizeof(BOOL));
+            // Square corners when spanning the full edge; rounded corners when the
+            // dock is a compact toolbar (edge fit-to-content or free-floating).
+            var preference = (IsEdgeFitToContent || IsFloatingPlacement)
+                ? DWM_WINDOW_CORNER_PREFERENCE.DWMWCP_ROUND
+                : DWM_WINDOW_CORNER_PREFERENCE.DWMWCP_DEFAULT;
+            PInvoke.DwmSetWindowAttribute(_hwnd, DWMWINDOWATTRIBUTE.DWMWA_WINDOW_CORNER_PREFERENCE, &preference, (uint)sizeof(DWM_WINDOW_CORNER_PREFERENCE));
         }
     }
 
@@ -219,7 +293,40 @@ public sealed partial class DockWindow : WindowEx,
         this.viewModel.UpdateSettings(_settings);
         UpdateBackdrop();
 
-        _dock.UpdateSettings(_settings, EffectiveSide);
+        _dock.UpdateSettings(_settings, ControlSide);
+        UpdateWindowFrame();
+
+        if (IsFloatingPlacement)
+        {
+            // Floating placement: a free, draggable overlay — never an app bar.
+            if (_appBarData.hWnd != IntPtr.Zero)
+            {
+                DestroyAppBar(_hwnd);
+            }
+
+            PositionFloatingDock();
+            UpdateTopmostState();
+            UpdateAutoHideTimer();
+            return;
+        }
+
+        // Leaving floating placement: make sure the auto-hide timer is stopped
+        // and the window is back to its shown position.
+        UpdateAutoHideTimer();
+
+        if (IsEdgeFitToContent)
+        {
+            // Fit-to-content mode: the dock is a compact toolbar, not an app
+            // bar, so it must not reserve work-area space.
+            if (_appBarData.hWnd != IntPtr.Zero)
+            {
+                DestroyAppBar(_hwnd);
+            }
+
+            UpdateFloatingWindowPosition();
+            UpdateTopmostState();
+            return;
+        }
 
         var side = DockSettingsToViews.GetAppBarEdge(EffectiveSide);
 
@@ -434,6 +541,18 @@ public sealed partial class DockWindow : WindowEx,
     {
         Logger.LogDebug("UpdateWindowPosition");
 
+        if (IsFloatingPlacement)
+        {
+            PositionFloatingDock();
+            return;
+        }
+
+        if (IsEdgeFitToContent)
+        {
+            UpdateFloatingWindowPosition();
+            return;
+        }
+
         var dpi = PInvoke.GetDpiForWindow(_hwnd);
 
         var scaleFactor = dpi / 96.0;
@@ -484,6 +603,588 @@ public sealed partial class DockWindow : WindowEx,
             _appBarData.rc.right - _appBarData.rc.left,
             _appBarData.rc.bottom - _appBarData.rc.top,
             true);
+    }
+
+    /// <summary>
+    /// Positions the dock as a compact toolbar along the chosen screen edge
+    /// (fit-to-content mode). Unlike the app-bar path, the window length is
+    /// either the user-set <see cref="DockSettings.CustomLength"/> or the
+    /// measured natural length of the dock content, and the window is aligned
+    /// along the edge per <see cref="DockSettings.Alignment"/>.
+    /// </summary>
+    /// <param name="overrideLengthPx">Live length (physical pixels) used while the
+    /// user is dragging the resize grip; <c>null</c> uses settings/measured length.</param>
+    private void UpdateFloatingWindowPosition(double? overrideLengthPx = null)
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        var dpi = PInvoke.GetDpiForWindow(_hwnd);
+        var scaleFactor = dpi / 96.0;
+        var side = EffectiveSide;
+        var isHorizontal = side is DockSide.Top or DockSide.Bottom;
+        var effectiveSize = EffectiveDockSize(_settings);
+        var thicknessDips = isHorizontal
+            ? DockSettingsToViews.HeightForSize(effectiveSize)
+            : DockSettingsToViews.WidthForSize(effectiveSize);
+        var thicknessPx = (int)(thicknessDips * scaleFactor);
+
+        // Use the monitor work area (excludes the taskbar) so the toolbar never
+        // overlaps it; fall back to primary screen metrics like the app-bar path.
+        int waLeft, waTop, waRight, waBottom;
+        if (_targetMonitor is not null)
+        {
+            waLeft = _targetMonitor.WorkArea.Left;
+            waTop = _targetMonitor.WorkArea.Top;
+            waRight = _targetMonitor.WorkArea.Right;
+            waBottom = _targetMonitor.WorkArea.Bottom;
+        }
+        else
+        {
+            var primary = _monitorService.GetPrimaryMonitor();
+            if (primary is not null)
+            {
+                waLeft = primary.WorkArea.Left;
+                waTop = primary.WorkArea.Top;
+                waRight = primary.WorkArea.Right;
+                waBottom = primary.WorkArea.Bottom;
+            }
+            else
+            {
+                waLeft = 0;
+                waTop = 0;
+                waRight = PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXSCREEN);
+                waBottom = PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CYSCREEN);
+            }
+        }
+
+        var edgeLengthPx = isHorizontal ? waRight - waLeft : waBottom - waTop;
+
+        double lengthPx;
+        if (overrideLengthPx is double live)
+        {
+            lengthPx = live;
+        }
+        else if (_settings.CustomLength > 0)
+        {
+            lengthPx = _settings.CustomLength * scaleFactor;
+        }
+        else
+        {
+            var contentDips = _dock.MeasureDesiredLength(isHorizontal, thicknessDips);
+            lengthPx = (contentDips + FloatingContentPaddingDips) * scaleFactor;
+        }
+
+        lengthPx = Math.Clamp(lengthPx, Math.Min(MinFloatingLengthDips * scaleFactor, edgeLengthPx), edgeLengthPx);
+
+        var offsetPx = _settings.Alignment switch
+        {
+            DockAlignment.Start => 0.0,
+            DockAlignment.End => edgeLengthPx - lengthPx,
+            _ => (edgeLengthPx - lengthPx) / 2.0,
+        };
+
+        int x, y, width, height;
+        if (isHorizontal)
+        {
+            x = waLeft + (int)offsetPx;
+            y = side == DockSide.Top ? waTop : waBottom - thicknessPx;
+            width = (int)lengthPx;
+            height = thicknessPx;
+        }
+        else
+        {
+            x = side == DockSide.Left ? waLeft : waRight - thicknessPx;
+            y = waTop + (int)offsetPx;
+            width = thicknessPx;
+            height = (int)lengthPx;
+        }
+
+        // Skip the move when nothing changed; SizeChanged-driven refits would
+        // otherwise keep poking the window on every layout pass.
+        PInvoke.GetWindowRect(_hwnd, out var currentRect);
+        if (currentRect.left == x && currentRect.top == y &&
+            currentRect.right - currentRect.left == width &&
+            currentRect.bottom - currentRect.top == height)
+        {
+            return;
+        }
+
+        PInvoke.MoveWindow(_hwnd, x, y, width, height, true);
+    }
+
+    private void Dock_ResizeDragStarted(object? sender, EventArgs e)
+    {
+        if (_isDisposed || !IsEdgeFitToContent)
+        {
+            return;
+        }
+
+        PInvoke.GetCursorPos(out var cursor);
+        _resizeDragStartCursor = cursor;
+        PInvoke.GetWindowRect(_hwnd, out var rect);
+        var isHorizontal = EffectiveSide is DockSide.Top or DockSide.Bottom;
+        _resizeDragStartLengthPx = isHorizontal ? rect.right - rect.left : rect.bottom - rect.top;
+        _resizeDragActive = true;
+    }
+
+    private void Dock_ResizeDragDelta(object? sender, EventArgs e)
+    {
+        if (_isDisposed || !IsEdgeFitToContent || !_resizeDragActive)
+        {
+            return;
+        }
+
+        PInvoke.GetCursorPos(out var cursor);
+        var isHorizontal = EffectiveSide is DockSide.Top or DockSide.Bottom;
+        double delta = isHorizontal
+            ? cursor.X - _resizeDragStartCursor.X
+            : cursor.Y - _resizeDragStartCursor.Y;
+
+        // The grip sits on the end edge of the dock, except for End alignment
+        // where the end edge is pinned to the screen corner and the grip sits
+        // on the start edge instead (dragging toward the start grows the dock).
+        // For Center alignment the dock grows symmetrically, so double the
+        // delta to keep the grip tracking the cursor.
+        var sign = _settings.Alignment == DockAlignment.End ? -1.0 : 1.0;
+        var factor = _settings.Alignment == DockAlignment.Center ? 2.0 : 1.0;
+
+        var newLengthPx = _resizeDragStartLengthPx + (delta * sign * factor);
+        UpdateFloatingWindowPosition(newLengthPx);
+    }
+
+    private void Dock_ResizeDragCompleted(object? sender, EventArgs e)
+    {
+        if (_isDisposed || !IsEdgeFitToContent || !_resizeDragActive)
+        {
+            return;
+        }
+
+        _resizeDragActive = false;
+
+        // Persist the final (clamped) length the window actually ended up at.
+        PInvoke.GetWindowRect(_hwnd, out var rect);
+        var isHorizontal = EffectiveSide is DockSide.Top or DockSide.Bottom;
+        var lengthPx = isHorizontal ? rect.right - rect.left : rect.bottom - rect.top;
+
+        // A click on the grip without movement shouldn't turn automatic sizing
+        // into a fixed length.
+        if (Math.Abs(lengthPx - _resizeDragStartLengthPx) < 1)
+        {
+            return;
+        }
+
+        var dpi = PInvoke.GetDpiForWindow(_hwnd);
+        var lengthDips = Math.Round(lengthPx * 96.0 / dpi);
+
+        _settingsService.UpdateSettings(s => s with
+        {
+            DockSettings = s.DockSettings with { CustomLength = lengthDips },
+        });
+    }
+
+    private void Dock_ResizeDragReset(object? sender, EventArgs e)
+    {
+        if (_isDisposed || !IsEdgeFitToContent)
+        {
+            return;
+        }
+
+        _resizeDragActive = false;
+
+        // Back to automatic fit-to-content sizing.
+        _settingsService.UpdateSettings(s => s with
+        {
+            DockSettings = s.DockSettings with { CustomLength = 0 },
+        });
+    }
+
+    private void Dock_ContentLayoutChanged(object? sender, EventArgs e)
+    {
+        // The dock's natural content length changed (band added/removed, items
+        // loaded, edit mode toggled). In automatic fit-to-content mode, follow it.
+        if (_isDisposed || !IsEdgeFitToContent || _settings.CustomLength > 0 || _resizeDragActive)
+        {
+            return;
+        }
+
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            if (!_isDisposed && IsEdgeFitToContent && _settings.CustomLength == 0 && !_resizeDragActive)
+            {
+                UpdateFloatingWindowPosition();
+            }
+            else if (!_isDisposed && IsFloatingPlacement && !_autoHideHidden)
+            {
+                // Free-floating dock follows its content size too.
+                PositionFloatingDock();
+            }
+        });
+    }
+
+    /// <summary>
+    /// Positions a free-floating dock. When snapped, it sits flush against the
+    /// <see cref="DockSettings.Side"/> edge (content-sized, auto-hide capable);
+    /// otherwise it sits at the saved free position, sized to its content in both
+    /// dimensions. Skips repositioning while the dock is auto-hidden so the hide
+    /// offset isn't clobbered.
+    /// </summary>
+    private void PositionFloatingDock()
+    {
+        if (_isDisposed || !IsFloatingPlacement || _autoHideHidden)
+        {
+            return;
+        }
+
+        var dpi = PInvoke.GetDpiForWindow(_hwnd);
+        var scaleFactor = dpi / 96.0;
+        var snappedSide = _settings.Side;
+        var isHorizontal = !_settings.FloatingSnapped || snappedSide is DockSide.Top or DockSide.Bottom;
+
+        // Thickness (cross-axis) comes from the dock size; length (main axis)
+        // from the measured content.
+        var effectiveSize = EffectiveDockSize(_settings);
+        var thicknessDips = isHorizontal
+            ? DockSettingsToViews.HeightForSize(effectiveSize)
+            : DockSettingsToViews.WidthForSize(effectiveSize);
+        var thicknessPx = (int)(thicknessDips * scaleFactor);
+
+        var contentDips = _dock.MeasureDesiredLength(isHorizontal, thicknessDips);
+        var lengthPx = (int)((contentDips + FloatingContentPaddingDips) * scaleFactor);
+        lengthPx = Math.Max(lengthPx, (int)(MinFloatingLengthDips * scaleFactor));
+
+        var wa = GetWorkAreaUnderWindow();
+
+        int x, y, width, height;
+        if (_settings.FloatingSnapped)
+        {
+            switch (snappedSide)
+            {
+                case DockSide.Top:
+                    width = lengthPx;
+                    height = thicknessPx;
+                    x = Clamp(wa.left + (((wa.right - wa.left) - width) / 2), wa.left, wa.right - width);
+                    y = wa.top;
+                    break;
+                case DockSide.Bottom:
+                    width = lengthPx;
+                    height = thicknessPx;
+                    x = Clamp(wa.left + (((wa.right - wa.left) - width) / 2), wa.left, wa.right - width);
+                    y = wa.bottom - height;
+                    break;
+                case DockSide.Left:
+                    width = thicknessPx;
+                    height = lengthPx;
+                    x = wa.left;
+                    y = Clamp(wa.top + (((wa.bottom - wa.top) - height) / 2), wa.top, wa.bottom - height);
+                    break;
+                default: // Right
+                    width = thicknessPx;
+                    height = lengthPx;
+                    x = wa.right - width;
+                    y = Clamp(wa.top + (((wa.bottom - wa.top) - height) / 2), wa.top, wa.bottom - height);
+                    break;
+            }
+
+            _floatingShownRect = new RECT { left = x, top = y, right = x + width, bottom = y + height };
+        }
+        else
+        {
+            width = lengthPx;
+            height = thicknessPx;
+            x = (int)(_settings.FloatingX * scaleFactor);
+            y = (int)(_settings.FloatingY * scaleFactor);
+
+            // Keep the dock on-screen even if the saved position is stale.
+            x = Clamp(x, wa.left, Math.Max(wa.left, wa.right - width));
+            y = Clamp(y, wa.top, Math.Max(wa.top, wa.bottom - height));
+        }
+
+        PInvoke.MoveWindow(_hwnd, x, y, width, height, true);
+    }
+
+    private void Dock_MoveDragRequested(object? sender, EventArgs e)
+    {
+        if (_isDisposed || !IsFloatingPlacement)
+        {
+            return;
+        }
+
+        // Hand the drag off to the system's modal move loop. It moves the window
+        // with the cursor and, on release, sends WM_EXITSIZEMOVE — which is where
+        // we run snap detection. This keeps band buttons clickable (only the grab
+        // handle starts a move) without a hand-rolled move loop.
+        _ = PInvoke.ReleaseCapture();
+        _ = PInvoke.SendMessage(_hwnd, PInvoke.WM_NCLBUTTONDOWN, new WPARAM(PInvoke.HTCAPTION), default);
+    }
+
+    /// <summary>
+    /// Runs after the user finishes dragging a floating dock: snaps to the nearest
+    /// screen edge when close enough (transforming orientation), otherwise records
+    /// the new free position. Persists the result so it survives restarts.
+    /// </summary>
+    private void OnFloatingMoveFinished()
+    {
+        if (_isDisposed || !IsFloatingPlacement)
+        {
+            return;
+        }
+
+        PInvoke.GetWindowRect(_hwnd, out var rect);
+        var dpi = PInvoke.GetDpiForWindow(_hwnd);
+        var scaleFactor = dpi / 96.0;
+        var wa = GetWorkAreaUnderWindow();
+        var thresholdPx = SnapThresholdDips * scaleFactor;
+
+        var distLeft = rect.left - wa.left;
+        var distTop = rect.top - wa.top;
+        var distRight = wa.right - rect.right;
+        var distBottom = wa.bottom - rect.bottom;
+
+        var minDist = Math.Min(Math.Min(distLeft, distRight), Math.Min(distTop, distBottom));
+
+        DockSide? snapTo = null;
+        if (minDist <= thresholdPx)
+        {
+            if (minDist == distTop)
+            {
+                snapTo = DockSide.Top;
+            }
+            else if (minDist == distBottom)
+            {
+                snapTo = DockSide.Bottom;
+            }
+            else if (minDist == distLeft)
+            {
+                snapTo = DockSide.Left;
+            }
+            else
+            {
+                snapTo = DockSide.Right;
+            }
+        }
+
+        if (snapTo is DockSide side)
+        {
+            _settingsService.UpdateSettings(s => s with
+            {
+                DockSettings = s.DockSettings with
+                {
+                    Side = side,
+                    FloatingSnapped = true,
+                },
+            });
+        }
+        else
+        {
+            // Free placement: persist the dropped top-left in DIPs.
+            _settingsService.UpdateSettings(s => s with
+            {
+                DockSettings = s.DockSettings with
+                {
+                    FloatingSnapped = false,
+                    FloatingX = Math.Round(rect.left / scaleFactor),
+                    FloatingY = Math.Round(rect.top / scaleFactor),
+                },
+            });
+        }
+    }
+
+    /// <summary>
+    /// Gets the work area (excludes the taskbar) of the monitor currently under the
+    /// dock window, in physical pixels. Falls back to the target/primary monitor.
+    /// </summary>
+    private unsafe RECT GetWorkAreaUnderWindow()
+    {
+        // MONITOR_DEFAULTTONEAREST always yields a valid monitor for a real window.
+        var hmon = PInvoke.MonitorFromWindow(_hwnd, MONITOR_FROM_FLAGS.MONITOR_DEFAULTTONEAREST);
+        var mi = default(MONITORINFO);
+        mi.cbSize = (uint)sizeof(MONITORINFO);
+        if (PInvoke.GetMonitorInfo(hmon, &mi))
+        {
+            return mi.rcWork;
+        }
+
+        // Fallback: target monitor work area, else full primary screen.
+        if (_targetMonitor is not null)
+        {
+            return new RECT
+            {
+                left = _targetMonitor.WorkArea.Left,
+                top = _targetMonitor.WorkArea.Top,
+                right = _targetMonitor.WorkArea.Right,
+                bottom = _targetMonitor.WorkArea.Bottom,
+            };
+        }
+
+        return new RECT
+        {
+            left = 0,
+            top = 0,
+            right = PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CXSCREEN),
+            bottom = PInvoke.GetSystemMetrics(SYSTEM_METRICS_INDEX.SM_CYSCREEN),
+        };
+    }
+
+    private static int Clamp(int value, int min, int max) => value < min ? min : (value > max ? max : value);
+
+    /// <summary>
+    /// Starts or stops the auto-hide polling timer based on the current settings. When
+    /// auto-hide turns off (or the dock leaves floating/snapped state) the dock is
+    /// returned to its fully-shown position.
+    /// </summary>
+    private void UpdateAutoHideTimer()
+    {
+        var wantAutoHide = IsFloatingPlacement && _settings.FloatingSnapped && _settings.AutoHide;
+
+        if (wantAutoHide)
+        {
+            _autoHideTimer ??= CreateAutoHideTimer();
+            if (!_autoHideTimer.IsRunning)
+            {
+                _autoHideTimer.Start();
+            }
+
+            return;
+        }
+
+        if (_autoHideTimer is not null && _autoHideTimer.IsRunning)
+        {
+            _autoHideTimer.Stop();
+        }
+
+        // Make sure we don't leave the dock stuck off-screen.
+        if (_autoHideHidden)
+        {
+            _autoHideHidden = false;
+            if (IsFloatingPlacement)
+            {
+                PositionFloatingDock();
+            }
+        }
+    }
+
+    private DispatcherQueueTimer CreateAutoHideTimer()
+    {
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(150);
+        timer.Tick += AutoHide_Tick;
+        return timer;
+    }
+
+    private void AutoHide_Tick(DispatcherQueueTimer sender, object args)
+    {
+        if (_isDisposed || !IsFloatingPlacement || !_settings.FloatingSnapped || !_settings.AutoHide)
+        {
+            return;
+        }
+
+        // Use the shown rect cached the last time we positioned the dock, so the
+        // poll stays cheap (no content re-measure on every tick).
+        if (_floatingShownRect.right <= _floatingShownRect.left)
+        {
+            _floatingShownRect = GetSnappedShownRect();
+        }
+
+        PInvoke.GetCursorPos(out var cursor);
+        var dpi = PInvoke.GetDpiForWindow(_hwnd);
+        var scaleFactor = dpi / 96.0;
+        var revealZonePx = AutoHideRevealZoneDips * scaleFactor;
+
+        // The shown rectangle is where the dock sits when revealed.
+        var shown = _floatingShownRect;
+        var side = _settings.Side;
+
+        // Reveal when the cursor is over the shown rectangle, or within the reveal
+        // zone of the snapped edge along the dock's span.
+        var overShown = cursor.X >= shown.left && cursor.X <= shown.right &&
+                        cursor.Y >= shown.top && cursor.Y <= shown.bottom;
+
+        bool nearEdge = side switch
+        {
+            DockSide.Top => cursor.Y <= shown.top + revealZonePx && cursor.X >= shown.left && cursor.X <= shown.right,
+            DockSide.Bottom => cursor.Y >= shown.bottom - revealZonePx && cursor.X >= shown.left && cursor.X <= shown.right,
+            DockSide.Left => cursor.X <= shown.left + revealZonePx && cursor.Y >= shown.top && cursor.Y <= shown.bottom,
+            _ => cursor.X >= shown.right - revealZonePx && cursor.Y >= shown.top && cursor.Y <= shown.bottom,
+        };
+
+        var wantShown = overShown || nearEdge;
+
+        if (wantShown && _autoHideHidden)
+        {
+            _autoHideHidden = false;
+            PInvoke.MoveWindow(_hwnd, shown.left, shown.top, shown.right - shown.left, shown.bottom - shown.top, true);
+        }
+        else if (!wantShown && !_autoHideHidden)
+        {
+            _autoHideHidden = true;
+            var sliverPx = (int)(AutoHideRevealSliverDips * scaleFactor);
+            var (hx, hy) = side switch
+            {
+                DockSide.Top => (shown.left, shown.top - ((shown.bottom - shown.top) - sliverPx)),
+                DockSide.Bottom => (shown.left, shown.bottom - sliverPx),
+                DockSide.Left => (shown.left - ((shown.right - shown.left) - sliverPx), shown.top),
+                _ => (shown.right - sliverPx, shown.top),
+            };
+            PInvoke.MoveWindow(_hwnd, hx, hy, shown.right - shown.left, shown.bottom - shown.top, true);
+        }
+    }
+
+    /// <summary>
+    /// Computes the physical-pixel rectangle a snapped floating dock occupies when
+    /// fully shown (mirrors <see cref="PositionFloatingDock"/>'s snapped branch).
+    /// </summary>
+    private RECT GetSnappedShownRect()
+    {
+        var dpi = PInvoke.GetDpiForWindow(_hwnd);
+        var scaleFactor = dpi / 96.0;
+        var side = _settings.Side;
+        var isHorizontal = side is DockSide.Top or DockSide.Bottom;
+
+        var effectiveSize = EffectiveDockSize(_settings);
+        var thicknessDips = isHorizontal
+            ? DockSettingsToViews.HeightForSize(effectiveSize)
+            : DockSettingsToViews.WidthForSize(effectiveSize);
+        var thicknessPx = (int)(thicknessDips * scaleFactor);
+
+        var contentDips = _dock.MeasureDesiredLength(isHorizontal, thicknessDips);
+        var lengthPx = (int)((contentDips + FloatingContentPaddingDips) * scaleFactor);
+        lengthPx = Math.Max(lengthPx, (int)(MinFloatingLengthDips * scaleFactor));
+
+        var wa = GetWorkAreaUnderWindow();
+
+        int x, y, width, height;
+        switch (side)
+        {
+            case DockSide.Top:
+                width = lengthPx;
+                height = thicknessPx;
+                x = Clamp(wa.left + (((wa.right - wa.left) - width) / 2), wa.left, wa.right - width);
+                y = wa.top;
+                break;
+            case DockSide.Bottom:
+                width = lengthPx;
+                height = thicknessPx;
+                x = Clamp(wa.left + (((wa.right - wa.left) - width) / 2), wa.left, wa.right - width);
+                y = wa.bottom - height;
+                break;
+            case DockSide.Left:
+                width = thicknessPx;
+                height = lengthPx;
+                x = wa.left;
+                y = Clamp(wa.top + (((wa.bottom - wa.top) - height) / 2), wa.top, wa.bottom - height);
+                break;
+            default: // Right
+                width = thicknessPx;
+                height = lengthPx;
+                x = wa.right - width;
+                y = Clamp(wa.top + (((wa.bottom - wa.top) - height) / 2), wa.top, wa.bottom - height);
+                break;
+        }
+
+        return new RECT { left = x, top = y, right = x + width, bottom = y + height };
     }
 
     /// <summary>
@@ -736,11 +1437,41 @@ public sealed partial class DockWindow : WindowEx,
                 UpdateTopmostState();
             }
         }
+
+        // The system modal move loop (started when the user drags the floating
+        // dock's grab handle) finished — decide whether to snap to an edge.
+        else if (msg == PInvoke.WM_EXITSIZEMOVE)
+        {
+            if (IsFloatingPlacement)
+            {
+                DispatcherQueue.TryEnqueue(OnFloatingMoveFinished);
+            }
+        }
         else if (msg == WM_TASKBAR_RESTART)
         {
             Logger.LogDebug("WM_TASKBAR_RESTART");
 
-            DispatcherQueue.TryEnqueue(() => CreateAppBar(_hwnd));
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (_isDisposed)
+                {
+                    return;
+                }
+
+                // Floating and fit-to-content docks aren't app bars; just re-anchor them.
+                if (IsFloatingPlacement)
+                {
+                    PositionFloatingDock();
+                }
+                else if (IsEdgeFitToContent)
+                {
+                    UpdateFloatingWindowPosition();
+                }
+                else
+                {
+                    CreateAppBar(_hwnd);
+                }
+            });
 
             WeakReferenceMessenger.Default.Send<BringToTopMessage>(new(false));
         }
@@ -761,7 +1492,10 @@ public sealed partial class DockWindow : WindowEx,
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            DestroyAppBar(_hwnd);
+            if (_appBarData.hWnd != IntPtr.Zero)
+            {
+                DestroyAppBar(_hwnd);
+            }
 
             this.Close();
         });
@@ -903,6 +1637,20 @@ public sealed partial class DockWindow : WindowEx,
         _isDisposed = true;
 
         _settingsService?.SettingsChanged -= SettingsChangedHandler;
+
+        _dock.ResizeDragStarted -= Dock_ResizeDragStarted;
+        _dock.ResizeDragDelta -= Dock_ResizeDragDelta;
+        _dock.ResizeDragCompleted -= Dock_ResizeDragCompleted;
+        _dock.ResizeDragReset -= Dock_ResizeDragReset;
+        _dock.ContentLayoutChanged -= Dock_ContentLayoutChanged;
+        _dock.MoveDragRequested -= Dock_MoveDragRequested;
+
+        if (_autoHideTimer is not null)
+        {
+            _autoHideTimer.Stop();
+            _autoHideTimer.Tick -= AutoHide_Tick;
+            _autoHideTimer = null;
+        }
 
         Activated -= DockWindow_Activated;
         _themeService.ThemeChanged -= ThemeService_ThemeChanged;

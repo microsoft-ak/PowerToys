@@ -180,6 +180,43 @@
                         Margin="-16,24,-16,0"
                         HorizontalAlignment="Stretch"
                         Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+                    <!--  Add a custom shortcut or link directly to the dock  -->
+                    <TextBlock
+                        x:Uid="Dock_AddShortcut_Header"
+                        Margin="8,16,8,4"
+                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    <TextBox
+                        x:Name="ShortcutNameTextBox"
+                        x:Uid="Dock_AddShortcut_Name"
+                        Margin="8,4,8,0" />
+                    <Grid Margin="8,8,8,0" ColumnSpacing="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBox
+                            x:Name="ShortcutTargetTextBox"
+                            x:Uid="Dock_AddShortcut_Target"
+                            TextChanged="ShortcutTargetTextBox_TextChanged" />
+                        <Button
+                            x:Name="BrowseShortcutButton"
+                            x:Uid="Dock_AddShortcut_Browse"
+                            Grid.Column="1"
+                            VerticalAlignment="Stretch"
+                            Click="BrowseShortcutButton_Click">
+                            <FontIcon FontSize="14" Glyph="&#xE838;" />
+                        </Button>
+                    </Grid>
+                    <Button
+                        x:Name="AddShortcutButton"
+                        x:Uid="Dock_AddShortcut_Add"
+                        Margin="8,8,8,0"
+                        HorizontalAlignment="Right"
+                        Click="AddShortcutButton_Click"
+                        IsEnabled="False"
+                        Style="{StaticResource AccentButtonStyle}" />
+
                     <Grid Margin="8,24,0,0" ColumnSpacing="8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -234,6 +271,7 @@
                     ItemsPanel="{StaticResource HorizontalItemsPanel}"
                     ItemsSource="{x:Bind ViewModel.StartItems, Mode=OneWay}"
                     SelectionMode="None"
+                    SizeChanged="BandListView_SizeChanged"
                     Style="{StaticResource DockBandListViewStyle}" />
             </local:DockContentControl.StartSource>
             <local:DockContentControl.StartActionButton>
@@ -263,6 +301,7 @@
                     ItemsPanel="{StaticResource HorizontalItemsPanel}"
                     ItemsSource="{x:Bind ViewModel.CenterItems, Mode=OneWay}"
                     SelectionMode="None"
+                    SizeChanged="BandListView_SizeChanged"
                     Style="{StaticResource DockBandListViewStyle}" />
             </local:DockContentControl.CenterSource>
             <local:DockContentControl.CenterActionButton>
@@ -294,6 +333,7 @@
                     ItemsPanel="{StaticResource HorizontalItemsPanel}"
                     ItemsSource="{x:Bind ViewModel.EndItems, Mode=OneWay}"
                     SelectionMode="None"
+                    SizeChanged="BandListView_SizeChanged"
                     Style="{StaticResource DockBandListViewStyle}" />
             </local:DockContentControl.EndSource>
             <local:DockContentControl.EndActionButton>
@@ -308,6 +348,60 @@
                 </Button>
             </local:DockContentControl.EndActionButton>
         </local:DockContentControl>
+
+        <!--
+            Resize grip for fit-to-content mode. Placement (which edge, horizontal
+            vs. vertical) is controlled from code-behind based on the dock side
+            and alignment; hidden entirely when the dock spans the full edge.
+        -->
+        <Border
+            x:Name="ResizeGrip"
+            x:Uid="Dock_ResizeGrip"
+            Width="12"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Stretch"
+            Background="Transparent"
+            DoubleTapped="ResizeGrip_DoubleTapped"
+            PointerCaptureLost="ResizeGrip_PointerCaptureLost"
+            PointerEntered="ResizeGrip_PointerEntered"
+            PointerExited="ResizeGrip_PointerExited"
+            PointerMoved="ResizeGrip_PointerMoved"
+            PointerPressed="ResizeGrip_PointerPressed"
+            PointerReleased="ResizeGrip_PointerReleased"
+            Visibility="Collapsed">
+            <Border
+                x:Name="ResizeGripHandle"
+                Width="3"
+                Height="20"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{ThemeResource ControlStrongFillColorDefaultBrush}"
+                CornerRadius="1.5" />
+        </Border>
+
+        <!--
+            Grab handle shown only for floating placement. Pressing it hands the
+            drag to the system move loop (code-behind); placement (leading edge,
+            orientation) is set from code-behind to match the dock layout.
+        -->
+        <Border
+            x:Name="FloatingDragHandle"
+            x:Uid="Dock_FloatingDragHandle"
+            Width="14"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Stretch"
+            Background="Transparent"
+            PointerEntered="FloatingDragHandle_PointerEntered"
+            PointerExited="FloatingDragHandle_PointerExited"
+            PointerPressed="FloatingDragHandle_PointerPressed"
+            Visibility="Collapsed">
+            <FontIcon
+                x:Name="FloatingDragHandleGlyph"
+                FontSize="12"
+                AutomationProperties.AccessibilityView="Raw"
+                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                Glyph="&#xE76F;" />
+        </Border>
         <TeachingTip
             x:Name="EditButtonsTeachingTip"
             MinWidth="0"
@@ -403,6 +497,24 @@
                         <Setter Target="ContentGrid.Margin" Value="0" />
                         <Setter Target="ContentGrid.Padding" Value="0" />
                         <Setter Target="RootGrid.BorderThickness" Value="0" />
+                    </VisualState.Setters>
+                </VisualState>
+            </VisualStateGroup>
+
+            <!--
+                Fit-to-content (toolbar) overrides: rounded corners and a full
+                border. Declared last so its setters win over the orientation
+                and compact groups when both target the same property.
+            -->
+            <VisualStateGroup x:Name="FloatingStates">
+                <VisualState x:Name="FloatingOff" />
+                <VisualState x:Name="FloatingOn">
+                    <VisualState.StateTriggers>
+                        <ui:IsEqualStateTrigger Value="{x:Bind IsFloating, Mode=OneWay}" To="True" />
+                    </VisualState.StateTriggers>
+                    <VisualState.Setters>
+                        <Setter Target="RootGrid.BorderThickness" Value="1" />
+                        <Setter Target="RootGrid.CornerRadius" Value="8" />
                     </VisualState.Setters>
                 </VisualState>
             </VisualStateGroup>

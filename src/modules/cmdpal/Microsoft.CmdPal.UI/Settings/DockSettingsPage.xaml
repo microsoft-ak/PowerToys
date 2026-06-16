@@ -52,8 +52,30 @@
                     <!--  Appearance Section  -->
                     <TextBlock x:Uid="DockAppearanceSettingsHeader" Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" />
 
+                    <!--  Placement: anchored to an edge (app bar) vs. free-floating toolbar  -->
+                    <controls:SettingsCard x:Uid="DockAppearance_Placement_SettingsCard" HeaderIcon="{ui:FontIcon Glyph=&#xE7C4;}">
+                        <ComboBox
+                            x:Name="DockPlacementComboBox"
+                            MinWidth="{StaticResource SettingActionControlMinWidth}"
+                            AutomationProperties.AutomationId="CmdPal_DockSettingsPage_Placement"
+                            SelectedIndex="{x:Bind SelectedPlacementIndex, Mode=TwoWay}">
+                            <ComboBoxItem x:Uid="DockAppearance_Placement_Edge" />
+                            <ComboBoxItem x:Uid="DockAppearance_Placement_Floating" />
+                        </ComboBox>
+                    </controls:SettingsCard>
+
+                    <!--  Auto-hide (floating placement only)  -->
+                    <controls:SettingsCard
+                        x:Name="DockAutoHideSettingsCard"
+                        x:Uid="DockAppearance_AutoHide_SettingsCard"
+                        HeaderIcon="{ui:FontIcon Glyph=&#xE7C4;}">
+                        <ToggleSwitch AutomationProperties.AutomationId="CmdPal_DockSettingsPage_AutoHide" IsOn="{x:Bind ViewModel.Dock_AutoHide, Mode=TwoWay}" />
+                    </controls:SettingsCard>
+
                     <!--  Dock Position  -->
-                    <controls:SettingsCard x:Uid="DockAppearance_DockPosition_SettingsCard">
+                    <controls:SettingsCard
+                        x:Name="DockPositionSettingsCard"
+                        x:Uid="DockAppearance_DockPosition_SettingsCard">
                         <controls:SettingsCard.HeaderIcon>
                             <SymbolIcon Symbol="MoveToFolder" />
                         </controls:SettingsCard.HeaderIcon>
@@ -80,6 +102,48 @@
                             <ComboBoxItem x:Uid="DockAppearance_DockSize_Default" />
                             <ComboBoxItem x:Uid="DockAppearance_DockSize_Compact" />
                         </ComboBox>
+                    </controls:SettingsCard>
+
+                    <!--  Dock Length (full edge vs. fit-to-content toolbar)  -->
+                    <controls:SettingsCard
+                        x:Name="DockLengthSettingsCard"
+                        x:Uid="DockAppearance_DockLength_SettingsCard"
+                        HeaderIcon="{ui:FontIcon Glyph=&#xE9A6;}">
+                        <ComboBox
+                            x:Name="DockLengthModeComboBox"
+                            MinWidth="{StaticResource SettingActionControlMinWidth}"
+                            AutomationProperties.AutomationId="CmdPal_DockSettingsPage_LengthMode"
+                            SelectedIndex="{x:Bind SelectedLengthModeIndex, Mode=TwoWay}">
+                            <ComboBoxItem x:Uid="DockAppearance_DockLength_Full" />
+                            <ComboBoxItem x:Uid="DockAppearance_DockLength_FitToContent" />
+                        </ComboBox>
+                    </controls:SettingsCard>
+
+                    <!--  Alignment along the edge (fit-to-content mode only)  -->
+                    <controls:SettingsCard
+                        x:Name="DockAlignmentSettingsCard"
+                        x:Uid="DockAppearance_DockAlignment_SettingsCard"
+                        HeaderIcon="{ui:FontIcon Glyph=&#xE8E4;}">
+                        <ComboBox
+                            x:Name="DockAlignmentComboBox"
+                            MinWidth="{StaticResource SettingActionControlMinWidth}"
+                            AutomationProperties.AutomationId="CmdPal_DockSettingsPage_Alignment"
+                            SelectedIndex="{x:Bind SelectedAlignmentIndex, Mode=TwoWay}">
+                            <ComboBoxItem x:Uid="DockAppearance_DockAlignment_Start" />
+                            <ComboBoxItem x:Uid="DockAppearance_DockAlignment_Center" />
+                            <ComboBoxItem x:Uid="DockAppearance_DockAlignment_End" />
+                        </ComboBox>
+                    </controls:SettingsCard>
+
+                    <!--  Reset custom dock size (fit-to-content mode only)  -->
+                    <controls:SettingsCard
+                        x:Name="DockResetLengthSettingsCard"
+                        x:Uid="DockAppearance_ResetLength_SettingsCard"
+                        HeaderIcon="{ui:FontIcon Glyph=&#xE777;}">
+                        <Button
+                            x:Uid="DockAppearance_ResetLength_Button"
+                            AutomationProperties.AutomationId="CmdPal_DockSettingsPage_ResetLength"
+                            Click="ResetDockLength_Click" />
                     </controls:SettingsCard>
 
                     <controls:SettingsCard x:Uid="DockAppearance_AppTheme_SettingsCard" HeaderIcon="{ui:FontIcon Glyph=&#xE793;}">
