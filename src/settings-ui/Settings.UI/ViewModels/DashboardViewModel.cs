@@ -493,6 +493,7 @@ namespace Microsoft.PowerToys.Settings.UI.ViewModels
                 ModuleType.EnvironmentVariables => GetModuleItemsEnvironmentVariables(),
                 ModuleType.FancyZones => GetModuleItemsFancyZones(),
                 ModuleType.FindMyMouse => GetModuleItemsFindMyMouse(),
+                ModuleType.FloatingDock => new ObservableCollection<DashboardModuleItem>(),
                 ModuleType.Hosts => GetModuleItemsHosts(),
                 ModuleType.KeyboardManager => GetModuleItemsKeyboardManager(),
                 ModuleType.LightSwitch => GetModuleItemsLightSwitch(),

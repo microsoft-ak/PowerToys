@@ -382,6 +382,23 @@ namespace Microsoft.PowerToys.Settings.UI.Library
             }
         }
 
+        private bool floatingDock; // defaulting to off
+
+        [JsonPropertyName("FloatingDock")]
+        public bool FloatingDock
+        {
+            get => floatingDock;
+            set
+            {
+                if (floatingDock != value)
+                {
+                    LogTelemetryEvent(value);
+                    floatingDock = value;
+                    NotifyChange();
+                }
+            }
+        }
+
         private bool peek = true;
 
         [JsonPropertyName("Peek")]

@@ -17,6 +17,7 @@ namespace ManagedCommon
         FancyZones,
         FileLocksmith,
         FindMyMouse,
+        FloatingDock,
         Hosts,
         ImageResizer,
         KeyboardManager,

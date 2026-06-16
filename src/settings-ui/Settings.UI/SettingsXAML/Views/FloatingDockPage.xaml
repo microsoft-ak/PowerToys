@@ -1,0 +1,88 @@
+<helper:NavigablePage
+    x:Class="Microsoft.PowerToys.Settings.UI.Views.FloatingDockPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Microsoft.PowerToys.Settings.UI.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:helper="using:Microsoft.PowerToys.Settings.UI.Helpers"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:tkcontrols="using:CommunityToolkit.WinUI.Controls"
+    xmlns:ui="using:CommunityToolkit.WinUI"
+    AutomationProperties.LandmarkType="Main"
+    mc:Ignorable="d">
+
+    <controls:SettingsPageControl x:Uid="FloatingDock" ModuleImageSource="ms-appx:///Assets/Settings/Icons/PowerToys.png">
+        <controls:SettingsPageControl.ModuleContent>
+            <StackPanel
+                ChildrenTransitions="{StaticResource SettingsCardsAnimations}"
+                Orientation="Vertical"
+                Spacing="2">
+                <controls:GPOInfoControl ShowWarning="{x:Bind ViewModel.IsEnabledGpoConfigured, Mode=OneWay}">
+                    <tkcontrols:SettingsCard
+                        Name="FloatingDockEnableToggle"
+                        x:Uid="FloatingDock_Enable_Toggle"
+                        HeaderIcon="{ui:BitmapIcon Source=/Assets/Settings/Icons/PowerToys.png}">
+                        <ToggleSwitch
+                            x:Uid="ToggleSwitch"
+                            AutomationProperties.Name="{Binding ElementName=FloatingDockEnableToggle, Path=Header}"
+                            IsOn="{x:Bind ViewModel.IsEnabled, Mode=TwoWay}" />
+                    </tkcontrols:SettingsCard>
+                </controls:GPOInfoControl>
+
+                <controls:SettingsGroup x:Uid="FloatingDock_Behavior" IsEnabled="{x:Bind ViewModel.IsEnabled, Mode=OneWay}">
+                    <tkcontrols:SettingsCard Name="FloatingDockStartExpandedToggle" x:Uid="FloatingDock_StartExpanded_Toggle">
+                        <ToggleSwitch
+                            x:Uid="ToggleSwitch"
+                            AutomationProperties.Name="{Binding ElementName=FloatingDockStartExpandedToggle, Path=Header}"
+                            IsOn="{x:Bind ViewModel.StartExpanded, Mode=TwoWay}" />
+                    </tkcontrols:SettingsCard>
+
+                    <tkcontrols:SettingsCard Name="FloatingDockShowLabelsToggle" x:Uid="FloatingDock_ShowLabels_Toggle">
+                        <ToggleSwitch
+                            x:Uid="ToggleSwitch"
+                            AutomationProperties.Name="{Binding ElementName=FloatingDockShowLabelsToggle, Path=Header}"
+                            IsOn="{x:Bind ViewModel.ShowLabels, Mode=TwoWay}" />
+                    </tkcontrols:SettingsCard>
+
+                    <tkcontrols:SettingsCard Name="FloatingDockSnapThreshold" x:Uid="FloatingDock_SnapThreshold">
+                        <NumberBox
+                            MinWidth="{StaticResource SettingActionControlMinWidth}"
+                            LargeChange="8"
+                            Maximum="96"
+                            Minimum="4"
+                            SmallChange="4"
+                            SpinButtonPlacementMode="Compact"
+                            Value="{x:Bind ViewModel.SnapThreshold, Mode=TwoWay}" />
+                    </tkcontrols:SettingsCard>
+                </controls:SettingsGroup>
+
+                <controls:SettingsGroup x:Uid="FloatingDock_AutoHide_Group" IsEnabled="{x:Bind ViewModel.IsEnabled, Mode=OneWay}">
+                    <tkcontrols:SettingsCard Name="FloatingDockAutoHideToggle" x:Uid="FloatingDock_AutoHide_Toggle">
+                        <ToggleSwitch
+                            x:Uid="ToggleSwitch"
+                            AutomationProperties.Name="{Binding ElementName=FloatingDockAutoHideToggle, Path=Header}"
+                            IsOn="{x:Bind ViewModel.AutoHide, Mode=TwoWay}" />
+                    </tkcontrols:SettingsCard>
+
+                    <tkcontrols:SettingsCard
+                        Name="FloatingDockAutoHideDelay"
+                        x:Uid="FloatingDock_AutoHideDelay"
+                        IsEnabled="{x:Bind ViewModel.AutoHide, Mode=OneWay}">
+                        <NumberBox
+                            MinWidth="{StaticResource SettingActionControlMinWidth}"
+                            LargeChange="500"
+                            Maximum="5000"
+                            Minimum="200"
+                            SmallChange="100"
+                            SpinButtonPlacementMode="Compact"
+                            Value="{x:Bind ViewModel.AutoHideDelayMs, Mode=TwoWay}" />
+                    </tkcontrols:SettingsCard>
+                </controls:SettingsGroup>
+            </StackPanel>
+        </controls:SettingsPageControl.ModuleContent>
+
+        <controls:SettingsPageControl.PrimaryLinks>
+            <controls:PageLink x:Uid="LearnMore_FloatingDock" Link="https://aka.ms/PowerToysOverview_FloatingDock" />
+        </controls:SettingsPageControl.PrimaryLinks>
+    </controls:SettingsPageControl>
+</helper:NavigablePage>

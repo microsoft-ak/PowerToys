@@ -211,6 +211,51 @@ public partial class SettingsViewModel : INotifyPropertyChanged
         }
     }
 
+    public DockPlacement Dock_Placement
+    {
+        get => _settingsService.Settings.DockSettings.Placement;
+        set
+        {
+            _settingsService.UpdateSettings(s => s with { DockSettings = s.DockSettings with { Placement = value } });
+        }
+    }
+
+    public bool Dock_AutoHide
+    {
+        get => _settingsService.Settings.DockSettings.AutoHide;
+        set
+        {
+            _settingsService.UpdateSettings(s => s with { DockSettings = s.DockSettings with { AutoHide = value } });
+        }
+    }
+
+    public DockLengthMode Dock_LengthMode
+    {
+        get => _settingsService.Settings.DockSettings.LengthMode;
+        set
+        {
+            _settingsService.UpdateSettings(s => s with { DockSettings = s.DockSettings with { LengthMode = value } });
+        }
+    }
+
+    public DockAlignment Dock_Alignment
+    {
+        get => _settingsService.Settings.DockSettings.Alignment;
+        set
+        {
+            _settingsService.UpdateSettings(s => s with { DockSettings = s.DockSettings with { Alignment = value } });
+        }
+    }
+
+    public double Dock_CustomLength
+    {
+        get => _settingsService.Settings.DockSettings.CustomLength;
+        set
+        {
+            _settingsService.UpdateSettings(s => s with { DockSettings = s.DockSettings with { CustomLength = value } });
+        }
+    }
+
     public DockBackdrop Dock_Backdrop
     {
         get => _settingsService.Settings.DockSettings.Backdrop;

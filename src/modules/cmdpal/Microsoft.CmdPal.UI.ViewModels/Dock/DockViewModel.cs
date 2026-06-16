@@ -816,6 +816,41 @@ public sealed partial class DockViewModel : IDisposable
     }
 
     /// <summary>
+    /// Adds a freshly-created command (e.g. a just-added bookmark/shortcut) to the
+    /// dock by its command id. The owning command provider surfaces new dock bands
+    /// asynchronously (the bookmark provider, for instance, rebuilds its bands on a
+    /// background task after <c>BookmarkAdded</c>), so this waits briefly for the
+    /// band's <see cref="TopLevelViewModel"/> to appear, then routes it through the
+    /// normal <see cref="AddBandToSection"/> edit-session path so it participates in
+    /// the current edit and gets its icon/title initialized like any other band.
+    /// </summary>
+    public async Task AddNewBandByCommandIdAsync(string commandId, DockPinSide targetSide)
+    {
+        TopLevelViewModel? topLevel = null;
+
+        // Poll for up to ~2s; the provider reload is a background task.
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            topLevel = _topLevelCommandManager.LookupDockBand(commandId);
+            if (topLevel is not null)
+            {
+                break;
+            }
+
+            await Task.Delay(50).ConfigureAwait(false);
+        }
+
+        if (topLevel is null)
+        {
+            Logger.LogWarning($"AddNewBandByCommandIdAsync: command '{commandId}' never surfaced as a dock band");
+            return;
+        }
+
+        var resolved = topLevel;
+        DoOnUiThread(() => AddBandToSection(resolved, targetSide));
+    }
+
+    /// <summary>
     /// Unpins a band from the dock, removing it from whichever section it's in.
     /// Does not save to disk - call SaveBandOrder() when done editing.
     /// </summary>

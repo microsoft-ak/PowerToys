@@ -34,6 +34,49 @@
 
   "tasks": [
     {
+      "label": "PT: Stop CmdPal",
+      "detail": "Terminate any running Command Palette instance so the build can overwrite its exe and the debugger attaches to a fresh process.",
+      "type": "shell",
+      "command": "taskkill /F /IM Microsoft.CmdPal.UI.exe 2>nul & exit 0",
+      "presentation": {
+        "reveal": "silent",
+        "panel": "shared",
+        "clear": false
+      },
+      "problemMatcher": []
+    },
+
+    {
+      "label": "PT: Build CmdPal (Debug x64)",
+      "detail": "Build the Command Palette app (Microsoft.CmdPal.UI) for x64 Debug.",
+      "type": "shell",
+      "command": "\"${workspaceFolder}\\tools\\build\\build.cmd\"",
+      "args": [
+        "-Path",
+        "${workspaceFolder}\\src\\modules\\cmdpal\\Microsoft.CmdPal.UI",
+        "-Platform",
+        "x64",
+        "-Configuration",
+        "Debug"
+      ],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+
+    {
+      "label": "CmdPal: Stop + Build for Debug",
+      "detail": "preLaunchTask for the 'CmdPal: Build & Debug' launch config: stop the running instance, then build.",
+      "dependsOrder": "sequence",
+      "dependsOn": ["PT: Stop CmdPal", "PT: Build CmdPal (Debug x64)"],
+      "problemMatcher": []
+    },
+
+    {
       "label": "PT: Build (quick)",
       "type": "shell",
       "command": "\"${workspaceFolder}\\tools\\build\\build.cmd\"",
@@ -63,6 +106,20 @@
         "${input:config}",
         "${input:msbuildExtra}"
       ],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "clear": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+
+    {
+      "label": "PT: Build FloatingDock (dock helper)",
+      "detail": "Stops any running dock, then builds PowerToys.FloatingDock.exe (fast inner loop).",
+      "type": "shell",
+      "command": "taskkill /IM PowerToys.FloatingDock.exe /F >nul 2>&1 & dotnet build \"${workspaceFolder}\\src\\modules\\FloatingDock\\FloatingDock\\FloatingDock.csproj\" -c Debug -p:Platform=x64 -v m --nologo",
+      "group": "build",
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",

@@ -423,6 +423,7 @@ namespace Microsoft.PowerToys.Settings.UI
                 case "LightSwitch": return typeof(LightSwitchPage);
                 case "FancyZones": return typeof(FancyZonesPage);
                 case "FileLocksmith": return typeof(FileLocksmithPage);
+                case "FloatingDock": return typeof(FloatingDockPage);
                 case "Run": return typeof(PowerLauncherPage);
                 case "ImageResizer": return typeof(ImageResizerPage);
                 case "KBM": return typeof(KeyboardManagerPage);
