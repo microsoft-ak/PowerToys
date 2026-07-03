@@ -46,6 +46,8 @@ struct LogSettings
     inline const static std::string mouseWithoutBordersLoggerName = "mouseWithoutBorders";
     inline const static std::wstring mouseWithoutBordersLogPath = L"LogsModuleInterface\\mouseWithoutBorders-log.log";
     inline const static std::wstring awakeLogPath = L"Logs\\awake-log.log";
+    inline const static std::string quickAccessDockLoggerName = "quick-access-dock";
+    inline const static std::wstring quickAccessDockLogPath = L"Logs\\quick-access-dock-log.log";
     inline const static std::wstring powerAccentLogPath = L"quick-accent-log.log";
     inline const static std::string fancyZonesLoggerName = "fancyzones";
     inline const static std::wstring fancyZonesLogPath = L"fancyzones-log.log";

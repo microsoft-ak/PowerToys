@@ -186,6 +186,22 @@ namespace Microsoft.PowerToys.Settings.UI.Library
             }
         }
 
+        private bool quickAccessDock; // defaulting to off
+
+        [JsonPropertyName("QuickAccessDock")]
+        public bool QuickAccessDock
+        {
+            get => quickAccessDock;
+            set
+            {
+                if (quickAccessDock != value)
+                {
+                    LogTelemetryEvent(value);
+                    quickAccessDock = value;
+                }
+            }
+        }
+
         private bool mouseWithoutBorders; // defaulting to off
 
         [JsonPropertyName("MouseWithoutBorders")]

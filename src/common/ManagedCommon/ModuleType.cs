@@ -9,6 +9,7 @@ namespace ManagedCommon
         AdvancedPaste,
         AlwaysOnTop,
         Awake,
+        QuickAccessDock,
         ColorPicker,
         CmdPal,
         CropAndLock,

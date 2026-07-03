@@ -19,6 +19,7 @@ namespace Microsoft.PowerToys.Settings.UI.Helpers
                 case ModuleType.AdvancedPaste: return GPOWrapper.GetConfiguredAdvancedPasteEnabledValue();
                 case ModuleType.AlwaysOnTop: return GPOWrapper.GetConfiguredAlwaysOnTopEnabledValue();
                 case ModuleType.Awake: return GPOWrapper.GetConfiguredAwakeEnabledValue();
+                case ModuleType.QuickAccessDock: return GPOWrapper.GetConfiguredQuickAccessDockEnabledValue();
                 case ModuleType.CmdPal: return GPOWrapper.GetConfiguredCmdPalEnabledValue();
                 case ModuleType.ColorPicker: return GPOWrapper.GetConfiguredColorPickerEnabledValue();
                 case ModuleType.CropAndLock: return GPOWrapper.GetConfiguredCropAndLockEnabledValue();
@@ -59,6 +60,7 @@ namespace Microsoft.PowerToys.Settings.UI.Helpers
                 ModuleType.AdvancedPaste => typeof(AdvancedPastePage),
                 ModuleType.AlwaysOnTop => typeof(AlwaysOnTopPage),
                 ModuleType.Awake => typeof(AwakePage),
+                ModuleType.QuickAccessDock => typeof(QuickAccessDockPage),
                 ModuleType.CmdPal => typeof(CmdPalPage),
                 ModuleType.ColorPicker => typeof(ColorPickerPage),
                 ModuleType.CropAndLock => typeof(CropAndLockPage),

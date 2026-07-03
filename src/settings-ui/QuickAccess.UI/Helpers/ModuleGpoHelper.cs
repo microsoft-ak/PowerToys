@@ -17,6 +17,7 @@ internal static class ModuleGpoHelper
             ModuleType.AdvancedPaste => GPOWrapper.GetConfiguredAdvancedPasteEnabledValue(),
             ModuleType.AlwaysOnTop => GPOWrapper.GetConfiguredAlwaysOnTopEnabledValue(),
             ModuleType.Awake => GPOWrapper.GetConfiguredAwakeEnabledValue(),
+            ModuleType.QuickAccessDock => GPOWrapper.GetConfiguredQuickAccessDockEnabledValue(),
             ModuleType.CmdPal => GPOWrapper.GetConfiguredCmdPalEnabledValue(),
             ModuleType.ColorPicker => GPOWrapper.GetConfiguredColorPickerEnabledValue(),
             ModuleType.CropAndLock => GPOWrapper.GetConfiguredCropAndLockEnabledValue(),

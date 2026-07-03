@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Look at Directory.Build.props in root for common stuff as well -->
+  <Import Project="$(RepoRoot)src\Common.SelfContained.props" />
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <OutputPath>$(RepoRoot)$(Platform)\$(Configuration)</OutputPath>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <!--Per documentation: https://learn.microsoft.com/dotnet/core/compatibility/windows-forms/5.0/automatically-infer-winexe-output-type#outputtype-set-to-winexe-for-wpf-and-winforms-apps -->
+    <DisableWinExeOutputInference>true</DisableWinExeOutputInference>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <AssemblyName>PowerToys.QuickAccessDock</AssemblyName>
+    <RootNamespace>QuickAccessDock</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <RepositoryUrl>https://github.com/microsoft/PowerToys</RepositoryUrl>
+  </PropertyGroup>
+
+  <!-- This module hosts ported third-party (MIT) WinForms code whose established style
+       intentionally diverges from the PowerToys StyleCop ruleset. Relax analyzer enforcement
+       for this project only (the C++ module interface and all Settings UI / Library changes
+       keep the full ruleset), while still suppressing the noisiest rules via NoWarn. -->
+  <PropertyGroup>
+    <EnableNETAnalyzers>false</EnableNETAnalyzers>
+    <RunAnalyzers>false</RunAnalyzers>
+    <RunAnalyzersDuringBuild>false</RunAnalyzersDuringBuild>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CA1031;CA1303;CA1304;CA1305;CA1307;CA1308;CA1416;CA1515;CA1822;CA1852;CA1859;CA2000;CS8019;IDE0005;SA1009;SA1011;SA1116;SA1117;SA1200;SA1310;SA1402;SA1512;SA1513;SA1515;SA1600;SA1633</NoWarn>
+  </PropertyGroup>
+</Project>

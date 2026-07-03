@@ -12,6 +12,10 @@ namespace winrt::PowerToys::GPOWrapper::implementation
     {
         return static_cast<GpoRuleConfigured>(powertoys_gpo::getConfiguredAwakeEnabledValue());
     }
+    GpoRuleConfigured GPOWrapper::GetConfiguredQuickAccessDockEnabledValue()
+    {
+        return static_cast<GpoRuleConfigured>(powertoys_gpo::getConfiguredQuickAccessDockEnabledValue());
+    }
     GpoRuleConfigured GPOWrapper::GetConfiguredCmdNotFoundEnabledValue()
     {
         return static_cast<GpoRuleConfigured>(powertoys_gpo::getConfiguredCmdNotFoundEnabledValue());

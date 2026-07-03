@@ -199,6 +199,12 @@
                             AutomationProperties.AutomationId="AwakeNavItem"
                             Icon="{ui:BitmapIcon Source=/Assets/Settings/Icons/Awake.png}" />
                         <NavigationViewItem
+                            x:Name="QuickAccessDockNavigationItem"
+                            x:Uid="Shell_QuickAccessDock"
+                            helpers:NavHelper.NavigateTo="views:QuickAccessDockPage"
+                            AutomationProperties.AutomationId="QuickAccessDockNavItem"
+                            Icon="{ui:BitmapIcon Source=/Assets/Settings/Icons/QuickAccessDock.png}" />
+                        <NavigationViewItem
                             x:Name="CmdPalNavigationItem"
                             x:Uid="Shell_CmdPal"
                             helpers:NavHelper.NavigateTo="views:CmdPalPage"

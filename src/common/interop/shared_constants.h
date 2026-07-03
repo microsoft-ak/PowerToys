@@ -66,7 +66,10 @@ namespace CommonSharedConstants
 
     // Path to the event used by Awake
     const wchar_t AWAKE_EXIT_EVENT[] = L"Local\\PowerToysAwakeExitEvent-c0d5e305-35fc-4fb5-83ec-f6070cfaf7fe";
-    
+
+    // Path to the event used by Quick Access Dock
+    const wchar_t QUICK_ACCESS_DOCK_EXIT_EVENT[] = L"Local\\PowerToysQuickAccessDockExitEvent-8f2c1d0a-6b4e-4f7a-9c3d-2e1b5a7f6d90";
+
     // Path to the event used by AlwaysOnTop
     const wchar_t ALWAYS_ON_TOP_PIN_EVENT[] = L"Local\\AlwaysOnTopPinEvent-892e0aa2-cfa8-4cc4-b196-ddeb32314ce8";
 

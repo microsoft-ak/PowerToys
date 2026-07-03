@@ -498,6 +498,9 @@ opera.exe</value>
     <value>Awake</value>
     <comment>{Locked}</comment>
   </data>
+  <data name="Shell_QuickAccessDock.Content" xml:space="preserve">
+    <value>Quick Access Dock</value>
+  </data>
   <data name="Shell_PowerLauncher.Content" xml:space="preserve">
     <value>PowerToys Run</value>
     <comment>Product name: Navigation view item name for PowerToys Run</comment>
@@ -2266,6 +2269,75 @@ From there, simply click on one of the supported files in the File Explorer and 
   <data name="Awake_EnableSettingsCard.Header" xml:space="preserve">
     <value>Awake</value>
     <comment>Awake is a product name, do not loc</comment>
+  </data>
+  <data name="QuickAccessDock.ModuleTitle" xml:space="preserve">
+    <value>Quick Access Dock</value>
+  </data>
+  <data name="QuickAccessDock.ModuleDescription" xml:space="preserve">
+    <value>A lightweight, always-on-top floating dock for pinning apps, files, folders, URLs and commands. Snap it to any screen edge with auto-hide.</value>
+  </data>
+  <data name="QuickAccessDock_EnableSettingsCard.Header" xml:space="preserve">
+    <value>Enable Quick Access Dock</value>
+  </data>
+  <data name="QuickAccessDock_AppearanceGroup.Header" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="QuickAccessDock_ThemeSettingsCard.Header" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="QuickAccessDock_ThemeSettingsCard.Description" xml:space="preserve">
+    <value>Choose whether the dock follows the system theme or uses a light or dark appearance</value>
+  </data>
+  <data name="QuickAccessDock_Theme_System.Content" xml:space="preserve">
+    <value>Use system setting</value>
+  </data>
+  <data name="QuickAccessDock_Theme_Light.Content" xml:space="preserve">
+    <value>Light</value>
+  </data>
+  <data name="QuickAccessDock_Theme_Dark.Content" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="QuickAccessDock_StyleSettingsCard.Header" xml:space="preserve">
+    <value>Style</value>
+  </data>
+  <data name="QuickAccessDock_StyleSettingsCard.Description" xml:space="preserve">
+    <value>The visual treatment applied to the dock surface and tiles</value>
+  </data>
+  <data name="QuickAccessDock_Style_Default.Content" xml:space="preserve">
+    <value>Default</value>
+  </data>
+  <data name="QuickAccessDock_Style_Neomorphism.Content" xml:space="preserve">
+    <value>Neomorphism</value>
+  </data>
+  <data name="QuickAccessDock_Style_Acrylic.Content" xml:space="preserve">
+    <value>Acrylic</value>
+  </data>
+  <data name="QuickAccessDock_BehaviorGroup.Header" xml:space="preserve">
+    <value>Behavior</value>
+  </data>
+  <data name="QuickAccessDock_AutoHideSettingsExpander.Header" xml:space="preserve">
+    <value>Auto-hide when snapped</value>
+  </data>
+  <data name="QuickAccessDock_AutoHideSettingsExpander.Description" xml:space="preserve">
+    <value>Slide the dock off-screen when idle at a snapped edge, leaving only a thin reveal notch</value>
+  </data>
+  <data name="QuickAccessDock_AutoHideDelaySettingsCard.Header" xml:space="preserve">
+    <value>Auto-hide delay (milliseconds)</value>
+  </data>
+  <data name="QuickAccessDock_SnapThresholdSettingsCard.Header" xml:space="preserve">
+    <value>Snap threshold (pixels)</value>
+  </data>
+  <data name="QuickAccessDock_SnapThresholdSettingsCard.Description" xml:space="preserve">
+    <value>How close to a screen edge the dock must be dragged before it snaps flush</value>
+  </data>
+  <data name="QuickAccessDock_SyncWebsiteIconsSettingsCard.Header" xml:space="preserve">
+    <value>Sync website icons</value>
+  </data>
+  <data name="QuickAccessDock_SyncWebsiteIconsSettingsCard.Description" xml:space="preserve">
+    <value>Fetch a site's favicon the first time a URL shortcut is opened</value>
+  </data>
+  <data name="LearnMore_QuickAccessDock.Text" xml:space="preserve">
+    <value>Learn more about Quick Access Dock</value>
   </data>
   <data name="Awake_NoKeepAwakeSelector.Content" xml:space="preserve">
     <value>Keep using the selected power plan</value>
