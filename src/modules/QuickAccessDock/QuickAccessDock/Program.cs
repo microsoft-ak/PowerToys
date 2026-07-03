@@ -101,7 +101,7 @@ internal static class Program
         var form = Application.OpenForms.Cast<Form>().FirstOrDefault();
         if (form is not null && form.IsHandleCreated && !form.IsDisposed)
         {
-            form.BeginInvoke(Application.Exit);
+            form.BeginInvoke(new Action(() => Application.Exit()));
         }
         else
         {
